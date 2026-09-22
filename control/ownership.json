@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 2,
+  "owners": [
+    {
+      "role": "contract-owner",
+      "paths": [
+        "package.json",
+        "pyproject.toml",
+        "*.csproj",
+        "*.sln",
+        "scripts/**",
+        ".github/**",
+        "infra/**",
+        "spec/**",
+        "**/migrations/**",
+        "src/**"
+      ],
+      "exclusive": [
+        "package.json",
+        "pyproject.toml",
+        "*.csproj",
+        "*.sln",
+        "scripts/**",
+        ".github/**",
+        "infra/**",
+        "spec/**",
+        "**/migrations/**"
+      ]
+    },
+    {
+      "role": "dev-worker",
+      "paths": [
+        "src/**",
+        "assets/**"
+      ]
+    },
+    {
+      "role": "qa-worker",
+      "paths": [
+        "tests/**"
+      ]
+    }
+  ],
+  "_notes": [
+    "这是一份通用占位。技术栈定下来后，协调器应该按真实目录结构重写 paths。",
+    "paths = 该 role 可改范围；exclusive = 只有该 role 能改，跨目录也生效。",
+    "构建配置、CI、契约、数据迁移放进 contract-owner 的 exclusive，避免多人同时动。",
+    "骨架期 contract-owner 也能碰 src/**，但它不在 exclusive 里，所以 dev-worker 照样能写业务代码。"
+  ]
+}

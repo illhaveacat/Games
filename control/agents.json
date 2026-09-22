@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "maxConcurrentWorkers": 2,
+  "coordinatorLeaseMinutes": 20,
+  "workerLeaseMinutes": 45,
+  "staleMinutes": 45,
+  "maxReworkRounds": 2,
+  "integrationBranch": "main",
+  "requireCoordinatorLease": true,
+  "requireRecordedVerify": true,
+  "allowSelfReview": false,
+  "requiredDocs": [
+    "AGENTS.md",
+    "docs/product.md",
+    "docs/architecture.md",
+    "docs/progress.md"
+  ],
+  "verifyCommands": [],
+  "_verifyCommands说明": [
+    "留空是故意的：技术栈还没定，填什么都是假的，而空数组会让 verify 直接失败。",
+    "协调器定完技术栈后，把这里改成【将来要跑的】命令，例如 npm test、pytest、dotnet test。",
+    "SETUP-001 的任务就是让这些命令真的存在并且跑绿。先定目标，再去实现它。"
+  ],
+  "roles": {
+    "coordinator": {
+      "count": 1,
+      "writeCode": false
+    },
+    "contract-owner": {
+      "count": 1,
+      "writeCode": true
+    },
+    "worker": {
+      "count": 1,
+      "writeCode": true
+    },
+    "reviewer": {
+      "count": 1,
+      "writeCode": false
+    }
+  }
+}

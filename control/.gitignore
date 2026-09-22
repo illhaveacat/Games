@@ -1,0 +1,5 @@
+# 指向本机共享控制目录的指针，按机器不同，不入库
+RUNTIME.json
+.state.lock
+.state.lock.stale.*
+*.tmp*

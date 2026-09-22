@@ -1,0 +1,14 @@
+{
+  "_说明": "claim-task 会用真实 Git 事实生成本文件，不要手抄。commands 由 `verify --task` 写入，人工填写的 pass 会被 complete 拒绝。",
+  "taskId": "",
+  "runId": "",
+  "agent": "",
+  "branch": "",
+  "baseCommit": "",
+  "headCommit": "",
+  "changedFiles": [],
+  "commands": [{"command": "", "result": "", "summary": "", "recordedBy": "verify"}],
+  "acceptanceEvidence": [{"criterion": "", "evidence": ""}],
+  "handoff": "handoff.md",
+  "createdAt": ""
+}

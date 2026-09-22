@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "agentCommand": [
+    "claude",
+    "--permission-mode",
+    "acceptEdits",
+    "{{KICKOFF}}"
+  ],
+  "terminal": "auto",
+  "members": [
+    {
+      "id": "coord-01",
+      "seat": "coordinator",
+      "workdir": "main"
+    },
+    {
+      "id": "contract-01",
+      "seat": "worker",
+      "taskRoles": [
+        "contract-owner"
+      ],
+      "branch": "agent/contract-01"
+    },
+    {
+      "id": "dev-01",
+      "seat": "worker",
+      "taskRoles": [
+        "dev-worker",
+        "qa-worker"
+      ],
+      "branch": "agent/dev-01"
+    },
+    {
+      "id": "rev-01",
+      "seat": "reviewer",
+      "workdir": "main"
+    }
+  ],
+  "_说明": "加 Worker 席位时，agents.json 的 maxConcurrentWorkers 要同步调大，否则多出来的会空转。"
+}

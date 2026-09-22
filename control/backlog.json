@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "tasks": [
+    {
+      "id": "SETUP-001",
+      "title": "建立项目骨架、运行方式与验证命令",
+      "role": "contract-owner",
+      "paths": [
+        "package.json",
+        "pyproject.toml",
+        "*.csproj",
+        "*.sln",
+        "scripts/**",
+        ".github/**",
+        "src/**"
+      ],
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "项目能一键启动，README 写明怎么跑",
+        "agents.json 里配置的 verify 命令全部真实存在且通过",
+        "至少一个最小测试用例，证明测试框架接好了"
+      ],
+      "status": "ready",
+      "assignee": null,
+      "updatedAt": null
+    }
+  ],
+  "_说明": "只放了一个开局任务。其余任务由协调器问清需求后用 import-tasks 追加。"
+}
