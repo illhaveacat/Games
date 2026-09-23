@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "pretest": "npm run build -w @games/shared",
     "test": "npm test --workspaces --if-present"
   },
   "engines": {
