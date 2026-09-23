@@ -5,5 +5,12 @@
   },
   "language": {
     "switch": "Language"
+  },
+  "voice": {
+    "speak": "Speak",
+    "listening": "Listening…",
+    "fallbackLabel": "Type your reply",
+    "fallbackPlaceholder": "Type in English…",
+    "send": "Send"
   }
 }
