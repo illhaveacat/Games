@@ -38,3 +38,4 @@
 | 2026-09-23 12:13（QUEST-BACKEND-001 返工送审） | dev-01 完成返工（2261eff：修复 3 条 P1 + 2 条 P2），complete → review。已通知 rev-01 复审，逐条核对上轮 P1 | 等 rev-01 复审；done 后 FIX-001、QUEST-UI-001 解锁 | 无阻塞 |
 | 2026-09-23（QUEST-BACKEND-001 第二次驳回） | rev-01 复审：3 个 P1 代码均已正确修复（engines>=22.13.0+判空、非法 action 返回 400 不发奖、completeQuest 同一事务、重复 complete 不重复发奖，均有测试）。唯一问题：progressStore.test.ts 回滚测试的故障注入点在 UPDATE 之前，去掉事务也能通过，证明不了原子性，因此再次驳回。reworkCount=2，已达 maxReworkRounds=2，再驳回一次会自动 blocked 交人。已通知 dev-01 只修这一处，并亲手验证"去掉事务测试失败、恢复后通过"写进 handoff | 等 dev-01 修测试后送审；rev-01 下轮只复核这条 | 返工次数已到上限，下一次驳回会升级到人类 |
 | 2026-09-23 12:16（QUEST-BACKEND-001 第三轮返工中） | dev-01 已重新 claim，rework → working，租约到 13:00，只修回滚测试注入点 | 等送审后通知 rev-01 只复核这条 | 返工次数已到上限 |
+| 2026-09-23 12:17（QUEST-BACKEND-001 第三轮送审） | dev-01 修正回滚测试注入点（ba94477），complete → review。已通知 rev-01 只复核这一条，并提醒返工已到上限、非阻塞小问题可在 approve note 中记录另建任务 | 等 rev-01 复审 | 再 reject 会自动 blocked 交人 |
