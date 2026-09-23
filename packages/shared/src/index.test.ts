@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createDialogueRequest, createDialogueResponse } from "./index.mjs";
+import { createDialogueRequest, createDialogueResponse } from "./index.js";
 
 test("createDialogueRequest 返回 speakerId/text", () => {
   const req = createDialogueRequest({ speakerId: "npc-1", text: "你好" });
