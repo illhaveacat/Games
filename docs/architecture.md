@@ -36,5 +36,6 @@ Games/
 
 - 语音识别/合成走浏览器原生 API，后端不做语音代理，避免引入外部付费依赖。
 - NPC 对话初期用规则/模板逻辑，返回结构需与 `packages/shared` 中定义的对话契约一致，方便后续替换为 LLM 驱动而不改前端调用方式。
-- 根 `package.json` 的 `test` 脚本聚合各 workspace 测试（`npm test` 是 `agents.json.verifyCommands` 里配置的验证命令，必须保持可跑通）。
+- 根 `package.json` 的 `test` 脚本用 `--workspaces --if-present`（或等效方式）聚合各 workspace 测试（`npm test` 是 `agents.json.verifyCommands` 里配置的验证命令，必须保持可跑通），这样某个 workspace 还没建好时不会拖垮整体验证。
+- 所有 workspace（含 `packages/shared`）一律用真正的 TypeScript（`.ts` + `tsconfig.json`）编写，不用 JSDoc 注释代替类型定义，避免 monorepo 里 JS/TS 混用增加维护成本。
 - 遵循 `docs/product.md` 的设计原则：学习内容即玩法本身、失败低成本即时反馈、NPC 有长期记忆、情境先于孤立词汇、语音是及格线。
