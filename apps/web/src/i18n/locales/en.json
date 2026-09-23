@@ -12,5 +12,20 @@
     "fallbackLabel": "Type your reply",
     "fallbackPlaceholder": "Type in English…",
     "send": "Send"
+  },
+  "questLog": {
+    "title": "Quest Log",
+    "empty": "No quests yet.",
+    "refresh": "Refresh",
+    "error": "Couldn't load quest progress. Try refreshing.",
+    "status": {
+      "not_started": "Not started",
+      "in_progress": "In progress",
+      "completed": "Completed"
+    }
+  },
+  "playerStatus": {
+    "level": "Level {{level}}",
+    "points": "{{points}} pts"
   }
 }

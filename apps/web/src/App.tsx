@@ -4,6 +4,7 @@ import { PhaserGame } from "./game/PhaserGame";
 import { useTalkingIndicator } from "./game/useTalkingIndicator";
 import { DialogueBubble } from "./components/DialogueBubble";
 import { AppHeader } from "./components/AppHeader";
+import { QuestPanel } from "./components/QuestPanel";
 import { VoiceDialogueInput } from "./components/VoiceDialogueInput";
 import { DEFAULT_NPC, getWelcomeMessage } from "./dialogue/welcomeMessage";
 import "./App.css";
@@ -24,6 +25,7 @@ export function App() {
         <DialogueBubble npc={DEFAULT_NPC} text={dialogue.text} />
       </div>
       <VoiceDialogueInput npcId={DEFAULT_NPC.id} onReply={setDialogue} />
+      <QuestPanel />
     </div>
   );
 }
