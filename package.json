@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "start": "node src/index.mjs",
-    "test": "node --test"
+    "test": "npm test --workspaces --if-present"
   },
   "engines": {
     "node": ">=18"

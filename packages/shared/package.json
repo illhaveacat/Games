@@ -1,0 +1,10 @@
+{
+  "name": "@games/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "node --test"
+  }
+}
