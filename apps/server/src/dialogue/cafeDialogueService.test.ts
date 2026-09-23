@@ -145,5 +145,56 @@ describe("generateCafeReply", () => {
       expect(getPlayerProgress(db).xp).toBe(180);
       expect(followup.text.length).toBeGreaterThan(0);
     });
+
+    // 弯引号撇号（iOS/macOS 智能标点默认打出来的就是这种，U+2019），rev-01 二次复审用真实 API 复现：
+    // 不归一化的话 tokenize 会把 "don’t" 切成 "don"/"t"，"don" 不在 NEGATION_WORDS 里，否定检测失效。
+    const CURLY_APOSTROPHE = "’";
+
+    it("does NOT complete order-coffee when negated with a curly apostrophe ('don’t', not the straight ASCII ')", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+      const before = getPlayerProgress(db).xp;
+
+      const text = `I don${CURLY_APOSTROPHE}t want coffee, is there tea?`;
+      const reply = generateCafeReply(db, text);
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+      expect(
+        listQuestsWithProgress(db).find((e) => e.quest.id === "quest-order-coffee")?.progress.status,
+      ).not.toBe("completed");
+      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+    });
+
+    it("does NOT complete order-coffee when negated with a curly apostrophe ('can’t')", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+      const before = getPlayerProgress(db).xp;
+
+      const text = `I can${CURLY_APOSTROPHE}t have coffee, sorry`;
+      generateCafeReply(db, text);
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+    });
+
+    it("does NOT complete order-coffee when negated with a curly apostrophe ('won’t')", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+      const before = getPlayerProgress(db).xp;
+
+      const text = `I won${CURLY_APOSTROPHE}t order coffee today`;
+      generateCafeReply(db, text);
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+    });
+
+    it("still detects negation normally with the straight ASCII apostrophe (curly-apostrophe fix doesn't break the existing case)", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+      const before = getPlayerProgress(db).xp;
+
+      generateCafeReply(db, "I don't want coffee, is there tea?");
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+    });
   });
 });

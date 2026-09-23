@@ -29,13 +29,23 @@ const NEGATION_WORDS = new Set([
   "never",
 ]);
 
+/**
+ * 把常见的弯引号撇号（左单引号 U+2018 '、右单引号 U+2019 '、修饰字母撇号 U+02BC ʼ）
+ * 统一成直引号 '。iOS/macOS 的智能标点默认会把用户打的 don't 自动变成 don't（弯引号），
+ * 如果不归一化，tokenize 用的 /[a-z']+/g 会把 "don't" 切成 "don" / "t" 两个 token，
+ * "don" 不在 NEGATION_WORDS 里，否定检测直接失效——手机用户几乎必然踩到这个坑。
+ */
+function normalizeApostrophes(text: string): string {
+  return text.replace(/[‘’ʼ]/g, "'");
+}
+
 function tokenize(text: string): string[] {
   return text.toLowerCase().match(/[a-z']+/g) ?? [];
 }
 
 /** 按逗号/句号/问号/叹号/分号切分句子，否定检测只在同一分句内生效，不跨句乱判。 */
 function splitClauses(text: string): string[] {
-  return text
+  return normalizeApostrophes(text)
     .toLowerCase()
     .split(/[.,!?;]+/)
     .map((clause) => clause.trim())
