@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import { dialogueRouter } from "./routes/dialogue.js";
 import { createQuestsRouter } from "./routes/quests.js";
 import { createDatabase, resolveDefaultDbPath } from "./progress/db.js";
+import { createCorsMiddleware, resolveAllowedOrigins, type AllowedOrigins } from "./middleware/cors.js";
 
 export interface CreateAppOptions {
   /**
@@ -9,12 +10,16 @@ export interface CreateAppOptions {
    * 生产环境如果漏传会静默丢数据，宁可默认安全（落盘）。测试需要隔离/加速时必须显式传 ":memory:"。
    */
   dbPath?: string;
+  /** 允许跨源访问的来源；默认读 CORS_ALLOWED_ORIGINS 环境变量（未设置则允许任意来源）。 */
+  corsAllowedOrigins?: AllowedOrigins;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const db = createDatabase(options.dbPath ?? resolveDefaultDbPath());
+  const corsAllowedOrigins = options.corsAllowedOrigins ?? resolveAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
 
   const app = express();
+  app.use(createCorsMiddleware(corsAllowedOrigins));
   app.use(express.json());
   app.use("/api", dialogueRouter);
   app.use("/api", createQuestsRouter(db));
