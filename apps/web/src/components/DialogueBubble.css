@@ -1,0 +1,26 @@
+.dialogue-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: 480px;
+  background: #ffffff;
+  color: #1d2b53;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-family: sans-serif;
+}
+
+.dialogue-bubble__speaker {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.dialogue-bubble__text {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}

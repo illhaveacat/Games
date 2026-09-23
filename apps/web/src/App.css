@@ -1,0 +1,13 @@
+.app {
+  font-family: sans-serif;
+  color: #1d2b53;
+  text-align: center;
+  padding: 16px;
+}
+
+.scene-wrapper {
+  position: relative;
+  width: 800px;
+  max-width: 100%;
+  margin: 0 auto;
+}
