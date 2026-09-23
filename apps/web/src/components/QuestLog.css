@@ -1,0 +1,46 @@
+.quest-log {
+  text-align: left;
+  font-family: sans-serif;
+  color: #1d2b53;
+}
+
+.quest-log h2 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.quest-log__empty {
+  color: #666666;
+  font-size: 0.9rem;
+}
+
+.quest-log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quest-log__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eeeeee;
+  font-size: 0.9rem;
+}
+
+.quest-log__status {
+  font-weight: 600;
+}
+
+.quest-log__item--not_started .quest-log__status {
+  color: #888888;
+}
+
+.quest-log__item--in_progress .quest-log__status {
+  color: #b8860b;
+}
+
+.quest-log__item--completed .quest-log__status {
+  color: #2e7d32;
+}

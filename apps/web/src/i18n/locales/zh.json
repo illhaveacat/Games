@@ -12,5 +12,20 @@
     "fallbackLabel": "输入你的回复",
     "fallbackPlaceholder": "用英语输入…",
     "send": "发送"
+  },
+  "questLog": {
+    "title": "任务日志",
+    "empty": "暂无任务。",
+    "refresh": "刷新",
+    "error": "加载任务进度失败，请重试。",
+    "status": {
+      "not_started": "未开始",
+      "in_progress": "进行中",
+      "completed": "已完成"
+    }
+  },
+  "playerStatus": {
+    "level": "等级 {{level}}",
+    "points": "{{points}} 积分"
   }
 }
