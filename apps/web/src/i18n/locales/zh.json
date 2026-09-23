@@ -5,5 +5,12 @@
   },
   "language": {
     "switch": "语言"
+  },
+  "voice": {
+    "speak": "说话",
+    "listening": "聆听中…",
+    "fallbackLabel": "输入你的回复",
+    "fallbackPlaceholder": "用英语输入…",
+    "send": "发送"
   }
 }

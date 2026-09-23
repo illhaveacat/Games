@@ -1,0 +1,29 @@
+.voice-input {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.voice-input button {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid #1d2b53;
+  background: #ffb703;
+  color: #1d2b53;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.voice-input button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.voice-input--fallback input[type="text"] {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #1d2b53;
+  min-width: 220px;
+}
