@@ -56,3 +56,30 @@ describe("POST /api/dialogue", () => {
     expect(res.body.text.length).toBeGreaterThan(0);
   });
 });
+
+describe("POST /api/dialogue with the cafe NPC (npc-barista) drives the quest chain end-to-end", () => {
+  it("completing the quest chain through dialogue is reflected in GET /api/quests and GET /api/progress", async () => {
+    const app = createApp({ dbPath: ":memory:" });
+
+    const greet = await request(app)
+      .post("/api/dialogue")
+      .send({ npcId: "npc-barista", playerText: "Hi! I'm new in town." });
+    expect(greet.status).toBe(200);
+    expect(greet.body.speakerId).toBe("npc-barista");
+
+    await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "coffee and a pastry" });
+    await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "no sugar, to go" });
+
+    const progress = await request(app).get("/api/progress");
+    expect(progress.body).toMatchObject({ level: 2, xp: 180, points: 45 });
+    expect(progress.body.completedQuestIds.sort()).toEqual(
+      ["quest-greet-barista", "quest-order-coffee", "quest-answer-followup"].sort(),
+    );
+    expect(progress.body.unlocks).toContain("npc-barista-extra-line");
+
+    const quests = await request(app).get("/api/quests");
+    expect(quests.body.every((entry: { progress: { status: string } }) => entry.progress.status === "completed")).toBe(
+      true,
+    );
+  });
+});

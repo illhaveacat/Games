@@ -1,0 +1,7 @@
+{
+  "id": "scene-cafe-opening",
+  "name": "Maple Street Cafe",
+  "description": "A cozy cafe on Maple Street where a traveler, newly arrived in an English-speaking town, meets the barista for the first time.",
+  "npcId": "npc-barista",
+  "questIds": ["quest-greet-barista", "quest-order-coffee", "quest-answer-followup"]
+}

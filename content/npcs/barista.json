@@ -1,0 +1,30 @@
+{
+  "id": "npc-barista",
+  "name": "Jamie",
+  "greeting": "Welcome to Maple Street Cafe! I'm Jamie — feel free to say hi and let me know if you'd like anything.",
+  "steps": [
+    {
+      "questId": "quest-greet-barista",
+      "keywords": ["hello", "hi", "hey"],
+      "reply": "Hi there! Welcome to Maple Street Cafe — you must be new around here. What can I get for you today?"
+    },
+    {
+      "questId": "quest-order-coffee",
+      "keywords": ["coffee", "pastry", "croissant", "muffin"],
+      "reply": "One coffee and a pastry, coming right up! Would you like sugar with that? And is it for here or to go?"
+    },
+    {
+      "questId": "quest-answer-followup",
+      "keywords": ["sugar", "no sugar", "here", "to go", "takeaway", "dine in"],
+      "reply": "Perfect, got it! Thanks for stopping by — enjoy your coffee!"
+    }
+  ],
+  "fallback": "Hmm, I'm not quite sure what you mean. Could you try saying that another way?",
+  "afterAllCompleteReply": "Thanks again for stopping by! Let me know if you'd like anything else.",
+  "unlock": {
+    "id": "npc-barista-extra-line",
+    "requiredLevel": 2,
+    "description": "The barista shares a bit of local news once you've settled in.",
+    "extraLine": "Oh, and I heard the bookshop on the corner just got a new shipment of novels — might be worth a visit!"
+  }
+}

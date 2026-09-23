@@ -1,0 +1,26 @@
+[
+  {
+    "id": "quest-greet-barista",
+    "npcId": "npc-barista",
+    "title": "Greet the barista",
+    "completionCriteria": "Say hello in English and let the barista know you're new in town.",
+    "rewardXp": 40,
+    "rewardPoints": 10
+  },
+  {
+    "id": "quest-order-coffee",
+    "npcId": "npc-barista",
+    "title": "Order coffee and a pastry",
+    "completionCriteria": "Order a coffee and a pastry in English.",
+    "rewardXp": 60,
+    "rewardPoints": 15
+  },
+  {
+    "id": "quest-answer-followup",
+    "npcId": "npc-barista",
+    "title": "Answer the barista's follow-up",
+    "completionCriteria": "Answer in English whether you'd like sugar, and dine-in or to go.",
+    "rewardXp": 80,
+    "rewardPoints": 20
+  }
+]

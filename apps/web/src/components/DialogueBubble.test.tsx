@@ -34,7 +34,7 @@ describe("DialogueBubble", () => {
 
       // 对话内容是英语学习内容本身，不随界面语言（i18n）切换而翻译。
       expect(screen.getByText(text)).toBeInTheDocument();
-      expect(text).toMatch(/^Hi, I'm Mira!/);
+      expect(text).toMatch(/^Welcome to Maple Street Cafe! I'm Jamie/);
     } finally {
       await i18n.changeLanguage("en");
     }
