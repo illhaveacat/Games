@@ -22,15 +22,32 @@
 
 .quest-log__item {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #eeeeee;
   font-size: 0.9rem;
 }
 
+.quest-log__quest-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quest-log__quest-title {
+  font-weight: 600;
+}
+
+.quest-log__quest-description {
+  font-size: 0.8rem;
+  color: #666666;
+}
+
 .quest-log__status {
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .quest-log__item--not_started .quest-log__status {

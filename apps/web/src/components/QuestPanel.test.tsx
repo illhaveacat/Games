@@ -1,78 +1,90 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QuestPanel } from "./QuestPanel";
 import type { PlayerProgressView, QuestListEntry } from "../api/questsClient";
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
 });
 
-const questsBefore: QuestListEntry[] = [
+const quests: QuestListEntry[] = [
   {
-    quest: { id: "quest-greet-barista", npcId: "npc-barista", title: "Greet the barista", completionCriteria: "c", rewardXp: 40, rewardPoints: 10 },
-    progress: { questId: "quest-greet-barista", status: "not_started" },
-  },
-];
-const progressBefore: PlayerProgressView = { level: 1, xp: 0, points: 0, completedQuestIds: [], unlocks: [] };
-
-const questsAfter: QuestListEntry[] = [
-  {
-    quest: { id: "quest-greet-barista", npcId: "npc-barista", title: "Greet the barista", completionCriteria: "c", rewardXp: 40, rewardPoints: 10 },
+    quest: { id: "quest-greet-barista", npcId: "npc-barista", title: "Greet", completionCriteria: "c", rewardXp: 40, rewardPoints: 10 },
     progress: { questId: "quest-greet-barista", status: "completed" },
   },
 ];
-const progressAfter: PlayerProgressView = { level: 2, xp: 100, points: 25, completedQuestIds: ["quest-greet-barista"], unlocks: ["npc-barista-extra-line"] };
-
-function mockFetchSequence(sequence: { quests: QuestListEntry[]; progress: PlayerProgressView }[]) {
-  let call = 0;
-  const fetchMock = vi.fn().mockImplementation((url: string) => {
-    // 一轮刷新里 fetchQuests/fetchPlayerProgress 通过 Promise.all 几乎同时发起，
-    // 用调用轮次（每两次请求算一轮）而不是先后顺序来决定该返回哪一轮的数据。
-    const round = Math.floor(call / 2);
-    call += 1;
-    const data = sequence[Math.min(round, sequence.length - 1)];
-    const body = String(url).includes("/api/quests") ? data.quests : data.progress;
-    return Promise.resolve({ ok: true, status: 200, json: async () => body });
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-}
+const progress: PlayerProgressView = {
+  level: 2,
+  xp: 100,
+  points: 25,
+  completedQuestIds: ["quest-greet-barista"],
+  unlocks: ["npc-barista-extra-line"],
+};
 
 describe("QuestPanel", () => {
-  it("renders quest status and level/points from the backend API on mount, not hardcoded data", async () => {
-    mockFetchSequence([{ quests: questsBefore, progress: progressBefore }]);
-
-    render(<QuestPanel />);
-
-    await waitFor(() => expect(screen.getByTestId("quest-status-quest-greet-barista")).toHaveTextContent("Not started"));
-    expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 1");
-    expect(screen.getByTestId("player-status-points")).toHaveTextContent("0 pts");
+  it("shows the loading state (not an empty quest list) while status is 'loading'", () => {
+    render(<QuestPanel status="loading" quests={[]} playerProgress={null} onRefresh={() => {}} />);
+    expect(screen.getByTestId("quest-panel-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("quest-log")).not.toBeInTheDocument();
+    expect(screen.queryByText("No quests yet.")).not.toBeInTheDocument();
   });
 
-  it("updates level/points/quest status after refresh, reflecting a completed quest on the backend", async () => {
-    mockFetchSequence([
-      { quests: questsBefore, progress: progressBefore },
-      { quests: questsAfter, progress: progressAfter },
-    ]);
+  it("shows an error state with a retry button while status is 'error', and calls onRefresh when retry is clicked", () => {
+    const onRefresh = vi.fn();
+    render(<QuestPanel status="error" quests={[]} playerProgress={null} onRefresh={onRefresh} />);
 
-    render(<QuestPanel />);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't load quest progress");
 
-    await waitFor(() => expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 1"));
-    expect(screen.getByTestId("quest-status-quest-greet-barista")).toHaveTextContent("Not started");
+    fireEvent.click(screen.getByTestId("quest-panel-retry"));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
 
-    fireEvent.click(screen.getByTestId("quest-panel-refresh"));
+  it("renders quest log, level/points, and unlocked content when status is 'loaded'", () => {
+    render(<QuestPanel status="loaded" quests={quests} playerProgress={progress} onRefresh={() => {}} />);
 
-    await waitFor(() => expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 2"));
+    expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 2");
     expect(screen.getByTestId("player-status-points")).toHaveTextContent("25 pts");
     expect(screen.getByTestId("quest-status-quest-greet-barista")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("quest-panel-unlocks")).toHaveTextContent("new story to share");
+    expect(screen.queryByTestId("quest-panel-loading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quest-panel-error")).not.toBeInTheDocument();
   });
 
-  it("shows an error message (not a crash) when the API request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+  it("does not render the unlocks list when there are no unlocks yet", () => {
+    render(
+      <QuestPanel
+        status="loaded"
+        quests={quests}
+        playerProgress={{ ...progress, unlocks: [] }}
+        onRefresh={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("quest-panel-unlocks")).not.toBeInTheDocument();
+  });
 
-    render(<QuestPanel />);
+  it("clicking the manual refresh button calls onRefresh", () => {
+    const onRefresh = vi.fn();
+    render(<QuestPanel status="loaded" quests={quests} playerProgress={progress} onRefresh={onRefresh} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load quest progress");
+    fireEvent.click(screen.getByTestId("quest-panel-refresh"));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps showing the already-loaded quest log/level/points when a background refresh fails (status='error' but data is present), with an inline retry bar instead of hiding everything", () => {
+    const onRefresh = vi.fn();
+    render(<QuestPanel status="error" quests={quests} playerProgress={progress} onRefresh={onRefresh} />);
+
+    // 数据还在：不是那种"加载失败就把整个面板清空"的行为
+    expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 2");
+    expect(screen.getByTestId("quest-status-quest-greet-barista")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("quest-panel-unlocks")).toBeInTheDocument();
+    // 不是"从未加载过"那种整版错误态
+    expect(screen.queryByTestId("quest-panel-error")).not.toBeInTheDocument();
+
+    const inlineError = screen.getByTestId("quest-panel-inline-error");
+    expect(inlineError).toHaveTextContent("Couldn't load quest progress");
+    fireEvent.click(screen.getByTestId("quest-panel-retry"));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });

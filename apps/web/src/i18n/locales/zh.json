@@ -16,8 +16,10 @@
   "questLog": {
     "title": "任务日志",
     "empty": "暂无任务。",
+    "loading": "任务日志加载中…",
     "refresh": "刷新",
-    "error": "加载任务进度失败，请重试。",
+    "retry": "重试",
+    "error": "加载任务进度失败。",
     "status": {
       "not_started": "未开始",
       "in_progress": "进行中",
@@ -27,5 +29,23 @@
   "playerStatus": {
     "level": "等级 {{level}}",
     "points": "{{points}} 积分"
+  },
+  "unlocks": {
+    "title": "已解锁",
+    "npc-barista-extra-line": "🔓 咖啡师多了一句新台词"
+  },
+  "quests": {
+    "quest-greet-barista": {
+      "title": "跟咖啡师打招呼",
+      "description": "用英语跟咖啡师打招呼（比如说 hello，再提一句你是新来的）。"
+    },
+    "quest-order-coffee": {
+      "title": "点咖啡和点心",
+      "description": "用英语点一杯咖啡和一份点心（提到其中一样就能继续推进）。"
+    },
+    "quest-answer-followup": {
+      "title": "回答咖啡师的追问",
+      "description": "用英语回答加糖或者堂食/打包（回答其中一部分就能继续推进）。"
+    }
   }
 }

@@ -1,5 +1,5 @@
 import express, { type Express } from "express";
-import { dialogueRouter } from "./routes/dialogue.js";
+import { createDialogueRouter } from "./routes/dialogue.js";
 import { createQuestsRouter } from "./routes/quests.js";
 import { createDatabase, resolveDefaultDbPath } from "./progress/db.js";
 import { createCorsMiddleware, resolveAllowedOrigins, type AllowedOrigins } from "./middleware/cors.js";
@@ -21,7 +21,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   app.use(createCorsMiddleware(corsAllowedOrigins));
   app.use(express.json());
-  app.use("/api", dialogueRouter);
+  app.use("/api", createDialogueRouter(db));
   app.use("/api", createQuestsRouter(db));
   return app;
 }

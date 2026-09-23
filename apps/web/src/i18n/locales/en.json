@@ -16,8 +16,10 @@
   "questLog": {
     "title": "Quest Log",
     "empty": "No quests yet.",
+    "loading": "Loading quest log…",
     "refresh": "Refresh",
-    "error": "Couldn't load quest progress. Try refreshing.",
+    "retry": "Retry",
+    "error": "Couldn't load quest progress.",
     "status": {
       "not_started": "Not started",
       "in_progress": "In progress",
@@ -27,5 +29,23 @@
   "playerStatus": {
     "level": "Level {{level}}",
     "points": "{{points}} pts"
+  },
+  "unlocks": {
+    "title": "Unlocked",
+    "npc-barista-extra-line": "🔓 The barista has a new story to share"
+  },
+  "quests": {
+    "quest-greet-barista": {
+      "title": "Greet the barista",
+      "description": "Greet the barista in English (e.g. say hello, and mention you're new in town)."
+    },
+    "quest-order-coffee": {
+      "title": "Order coffee and a pastry",
+      "description": "Order a coffee and a pastry in English (naming either item moves things forward)."
+    },
+    "quest-answer-followup": {
+      "title": "Answer the barista's follow-up",
+      "description": "Answer in English about sugar or dine-in/to-go (answering either part moves things forward)."
+    }
   }
 }

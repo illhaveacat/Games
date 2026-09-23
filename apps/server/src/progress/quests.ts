@@ -1,35 +1,12 @@
 import type { Quest } from "@games/shared";
+import { loadBaristaContent, loadQuests } from "../content/loadContent.js";
 
 /**
- * 开场关卡（咖啡馆点单）任务链，对应 docs/product.md 的具体设定：
- * 打招呼 -> 点单 -> 回答追问。总奖励经验在完成前两条后刚好跨过等级 2 的阈值（100 xp）。
+ * 开场关卡（咖啡馆点单）任务链，来自 content/quests/cafe-opening.json（STAGE-001），
+ * 对应 docs/product.md 的具体设定：打招呼 -> 点单 -> 回答追问。
+ * 总奖励经验在完成前两条后刚好跨过等级 2 的阈值（100 xp）。
  */
-export const QUESTS: Quest[] = [
-  {
-    id: "quest-greet-barista",
-    npcId: "npc-barista",
-    title: "跟咖啡师打招呼",
-    completionCriteria: "用英语和咖啡师打招呼，说明自己是新来的",
-    rewardXp: 40,
-    rewardPoints: 10,
-  },
-  {
-    id: "quest-order-coffee",
-    npcId: "npc-barista",
-    title: "点一杯咖啡和一份点心",
-    completionCriteria: "用英语向咖啡师点一杯咖啡和一份点心",
-    rewardXp: 60,
-    rewardPoints: 15,
-  },
-  {
-    id: "quest-answer-followup",
-    npcId: "npc-barista",
-    title: "回答咖啡师的追问",
-    completionCriteria: "用英语回答是否加糖、堂食还是打包",
-    rewardXp: 80,
-    rewardPoints: 20,
-  },
-];
+export const QUESTS: Quest[] = loadQuests();
 
 export function findQuestById(id: string): Quest | undefined {
   return QUESTS.find((quest) => quest.id === id);
@@ -41,11 +18,14 @@ export interface UnlockDefinition {
   description: string;
 }
 
+/** 解锁目录来自咖啡师的内容包（content/npcs/barista.json 的 unlock 字段），跟对话内容保持单一事实来源。 */
+const BARISTA_UNLOCK = loadBaristaContent().unlock;
+
 export const UNLOCKS: UnlockDefinition[] = [
   {
-    id: "npc-barista-extra-line",
-    requiredLevel: 2,
-    description: "咖啡师解锁一句新台词（测试用内容标记）",
+    id: BARISTA_UNLOCK.id,
+    requiredLevel: BARISTA_UNLOCK.requiredLevel,
+    description: BARISTA_UNLOCK.description,
   },
 ];
 
