@@ -23,18 +23,25 @@ export function useQuestProgress(): QuestProgressState {
   const [quests, setQuests] = useState<QuestListEntry[]>([]);
   const [playerProgress, setPlayerProgress] = useState<PlayerProgressView | null>(null);
   const hasLoadedOnceRef = useRef(false);
+  // 每次 load() 自增的请求序号：对话推进很快时可能连续触发好几次 refresh，
+  // 网络响应到达的顺序不一定跟发出的顺序一致，旧请求晚到就会用过期数据覆盖新数据。
+  // 只有"最新发出的那次请求"的结果才允许真正写进 state，更早发出的请求即使后到也会被忽略。
+  const latestRequestIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current;
     if (!hasLoadedOnceRef.current) {
       setStatus("loading");
     }
     try {
       const [questsData, progressData] = await Promise.all([fetchQuests(), fetchPlayerProgress()]);
+      if (requestId !== latestRequestIdRef.current) return; // 已经有更新的请求发出了，这次的结果作废
       setQuests(questsData);
       setPlayerProgress(progressData);
       setStatus("loaded");
       hasLoadedOnceRef.current = true;
     } catch {
+      if (requestId !== latestRequestIdRef.current) return;
       setStatus("error");
     }
   }, []);

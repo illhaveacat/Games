@@ -70,4 +70,21 @@ describe("QuestPanel", () => {
     fireEvent.click(screen.getByTestId("quest-panel-refresh"));
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps showing the already-loaded quest log/level/points when a background refresh fails (status='error' but data is present), with an inline retry bar instead of hiding everything", () => {
+    const onRefresh = vi.fn();
+    render(<QuestPanel status="error" quests={quests} playerProgress={progress} onRefresh={onRefresh} />);
+
+    // 数据还在：不是那种"加载失败就把整个面板清空"的行为
+    expect(screen.getByTestId("player-status-level")).toHaveTextContent("Level 2");
+    expect(screen.getByTestId("quest-status-quest-greet-barista")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("quest-panel-unlocks")).toBeInTheDocument();
+    // 不是"从未加载过"那种整版错误态
+    expect(screen.queryByTestId("quest-panel-error")).not.toBeInTheDocument();
+
+    const inlineError = screen.getByTestId("quest-panel-inline-error");
+    expect(inlineError).toHaveTextContent("Couldn't load quest progress");
+    fireEvent.click(screen.getByTestId("quest-panel-retry"));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
 });

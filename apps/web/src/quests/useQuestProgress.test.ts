@@ -86,4 +86,56 @@ describe("useQuestProgress", () => {
     expect(result.current.status).toBe("loaded"); // 中途没有变回 loading，避免整版闪烁
     expect(result.current.quests[0].progress.status).toBe("completed");
   });
+
+  it("ignores a stale in-flight response that resolves after a newer refresh's response already landed (out-of-order network replies)", async () => {
+    mockFetchOk();
+    const { result } = renderHook(() => useQuestProgress());
+    await waitFor(() => expect(result.current.status).toBe("loaded"));
+
+    // 手动控制两轮 fetch 的 resolve 时机：第一轮（旧）故意晚于第二轮（新）resolve，
+    // 模拟对话推进很快、连续触发两次 refresh 时网络响应可能乱序到达的情况。
+    let resolveStaleProgress!: (value: unknown) => void;
+    let resolveStaleQuests!: (value: unknown) => void;
+    const staleProgress = new Promise((resolve) => {
+      resolveStaleProgress = resolve;
+    });
+    const staleQuests = new Promise((resolve) => {
+      resolveStaleQuests = resolve;
+    });
+
+    const freshProgress = { level: 3, xp: 300, points: 90, completedQuestIds: ["q1"], unlocks: [] };
+    const freshQuests = [{ ...quests[0], progress: { questId: "q1", status: "completed" as const } }];
+    const staleProgressBody = { level: 2, xp: 100, points: 25, completedQuestIds: [], unlocks: [] };
+
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        call += 1;
+        const isQuests = String(url).includes("/api/quests");
+        if (call <= 2) {
+          // 第一轮（旧）：先不 resolve，稍后手动放行
+          return isQuests
+            ? staleQuests.then(() => ({ ok: true, status: 200, json: async () => quests }))
+            : staleProgress.then(() => ({ ok: true, status: 200, json: async () => staleProgressBody }));
+        }
+        // 第二轮（新）：立即 resolve，先落地
+        return Promise.resolve({ ok: true, status: 200, json: async () => (isQuests ? freshQuests : freshProgress) });
+      }),
+    );
+
+    act(() => result.current.refresh()); // 第一轮：发出去但先不 resolve
+    act(() => result.current.refresh()); // 第二轮：立即 resolve，先落地
+
+    await waitFor(() => expect(result.current.playerProgress?.level).toBe(3));
+    expect(result.current.quests[0].progress.status).toBe("completed");
+
+    // 现在放行第一轮（旧）的响应：不应该覆盖已经落地的新数据
+    resolveStaleQuests(undefined);
+    resolveStaleProgress(undefined);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(result.current.playerProgress?.level).toBe(3); // 仍然是新数据，没被旧响应覆盖
+    expect(result.current.quests[0].progress.status).toBe("completed");
+  });
 });

@@ -80,4 +80,70 @@ describe("generateCafeReply", () => {
     // 没有因为任务都完成了而重复发奖
     expect(getPlayerProgress(db).xp).toBe(180);
   });
+
+  describe("regression: word-boundary + negation (rev-01's real API repro on run-20260923-123440-7cea56)", () => {
+    it("does NOT complete the greet step on a substring accident ('this' contains 'hi')", () => {
+      const db = createDatabase(":memory:");
+      const reply = generateCafeReply(db, "What's this place?");
+
+      expect(getPlayerProgress(db).xp).toBe(0);
+      expect(
+        listQuestsWithProgress(db).find((e) => e.quest.id === "quest-greet-barista")?.progress.status,
+      ).not.toBe("completed");
+      expect(reply.text).toBe(reply.text); // 有正常回复（fallback），不是抛错
+    });
+
+    it("does NOT complete the order-coffee step when 'coffee' is explicitly negated ('I don't want coffee')", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello"); // 先过第一步，进入 order-coffee 这一步
+      const before = getPlayerProgress(db).xp;
+
+      const reply = generateCafeReply(db, "I don't want coffee, is there tea?");
+
+      expect(getPlayerProgress(db).xp).toBe(before); // 没有多发奖
+      expect(
+        listQuestsWithProgress(db).find((e) => e.quest.id === "quest-order-coffee")?.progress.status,
+      ).not.toBe("completed");
+      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+    });
+
+    it("does NOT complete the answer-followup step on a substring accident ('where' contains 'here')", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+      generateCafeReply(db, "coffee and a pastry"); // 进入第三步
+      const before = getPlayerProgress(db).xp;
+
+      const reply = generateCafeReply(db, "Where is the restroom?");
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+      expect(
+        listQuestsWithProgress(db).find((e) => e.quest.id === "quest-answer-followup")?.progress.status,
+      ).not.toBe("completed");
+      expect(reply.text.toLowerCase()).not.toContain("perfect, got it");
+    });
+
+    it("does NOT complete the greet step on other substring accidents ('they' contains 'hey', 'there' contains 'here' is irrelevant to greet but tested for completeness)", () => {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "Are they open right now?"); // 'they' 不应该误命中 'hey'
+
+      expect(getPlayerProgress(db).xp).toBe(0);
+      expect(
+        listQuestsWithProgress(db).find((e) => e.quest.id === "quest-greet-barista")?.progress.status,
+      ).not.toBe("completed");
+    });
+
+    it("still completes the steps normally once the player actually says the right thing (word-boundary fix doesn't break real matches)", () => {
+      const db = createDatabase(":memory:");
+      const greet = generateCafeReply(db, "Hi! I'm new in town.");
+      expect(getPlayerProgress(db).xp).toBe(40);
+      expect(greet.text.toLowerCase()).toContain("welcome");
+
+      const order = generateCafeReply(db, "coffee and a blueberry muffin");
+      expect(getPlayerProgress(db).xp).toBe(100);
+
+      const followup = generateCafeReply(db, "no sugar, for here");
+      expect(getPlayerProgress(db).xp).toBe(180);
+      expect(followup.text.length).toBeGreaterThan(0);
+    });
+  });
 });

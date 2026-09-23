@@ -37,15 +37,15 @@
   "quests": {
     "quest-greet-barista": {
       "title": "Greet the barista",
-      "description": "Say hello in English and let the barista know you're new in town."
+      "description": "Greet the barista in English (e.g. say hello, and mention you're new in town)."
     },
     "quest-order-coffee": {
       "title": "Order coffee and a pastry",
-      "description": "Order a coffee and a pastry in English."
+      "description": "Order a coffee and a pastry in English (naming either item moves things forward)."
     },
     "quest-answer-followup": {
       "title": "Answer the barista's follow-up",
-      "description": "Answer in English whether you'd like sugar, and dine-in or to go."
+      "description": "Answer in English about sugar or dine-in/to-go (answering either part moves things forward)."
     }
   }
 }

@@ -13,9 +13,66 @@ function buildResponse(speakerId: string, text: string): DialogueResponse {
   return { speakerId, text, timestamp: Date.now() };
 }
 
+const NEGATION_WORDS = new Set([
+  "no",
+  "not",
+  "don't",
+  "dont",
+  "doesn't",
+  "doesnt",
+  "isn't",
+  "isnt",
+  "won't",
+  "wont",
+  "can't",
+  "cant",
+  "never",
+]);
+
+function tokenize(text: string): string[] {
+  return text.toLowerCase().match(/[a-z']+/g) ?? [];
+}
+
+/** 按逗号/句号/问号/叹号/分号切分句子，否定检测只在同一分句内生效，不跨句乱判。 */
+function splitClauses(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[.,!?;]+/)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0);
+}
+
+function containsPhrase(tokens: string[], phraseTokens: string[]): boolean {
+  for (let i = 0; i <= tokens.length - phraseTokens.length; i++) {
+    if (phraseTokens.every((word, offset) => tokens[i + offset] === word)) return true;
+  }
+  return false;
+}
+
+/**
+ * 按单词边界匹配，不是子串匹配——'this' 不再误命中 'hi'，'where' 不再误命中 'here'。
+ * 多词短语（如 'to go'/'no sugar'）按分词后的连续子序列匹配，天然免疫子串误命中；
+ * 这类短语本身已经是完整、明确的意思（'no sugar' 就是在回答不要糖），不再额外做否定检测。
+ * 单个词的关键词还要求同一分句里它前面没有紧跟否定词（'don't'/'not'/'no' 等），
+ * 用来挡掉"I don't want coffee"这类明确否定的句子——不做更复杂的语义理解，只处理这种显而易见的情况。
+ */
 function matchesStep(playerText: string, keywords: string[]): boolean {
-  const lower = playerText.toLowerCase();
-  return keywords.some((keyword) => lower.includes(keyword));
+  const clauses = splitClauses(playerText);
+  return keywords.some((keyword) => {
+    const lowerKeyword = keyword.toLowerCase();
+    const phraseTokens = lowerKeyword.split(/\s+/).filter(Boolean);
+
+    if (phraseTokens.length > 1) {
+      return clauses.some((clause) => containsPhrase(tokenize(clause), phraseTokens));
+    }
+
+    return clauses.some((clause) => {
+      const tokens = tokenize(clause);
+      const index = tokens.indexOf(lowerKeyword);
+      if (index === -1) return false;
+      return !tokens.slice(0, index).some((token) => NEGATION_WORDS.has(token));
+    });
+  });
 }
 
 /**

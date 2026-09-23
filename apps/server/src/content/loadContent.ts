@@ -32,6 +32,12 @@ export interface NpcUnlock {
 export interface NpcContent {
   id: string;
   name: string;
+  /**
+   * 内容包里的欢迎语，目前没有代码在读它——apps/web 的 welcomeMessage.ts 另外手写了一份
+   * 展示在页面上的欢迎语（避免 Vite 跨项目根目录读 content/ 的复杂度，见该文件的注释）。
+   * 保留这个字段是当作 content 包自身的文档/给关卡设计者看的参考，不是死代码 bug；
+   * 以后如果 apps/web 能直接读 content/，这里就是它应该读取的那份事实来源。
+   */
   greeting: string;
   steps: DialogueStep[];
   fallback: string;

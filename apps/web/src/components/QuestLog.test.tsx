@@ -56,14 +56,14 @@ describe("QuestLog", () => {
 
     const { rerender } = render(<QuestLog quests={[cafeQuest]} />);
     expect(screen.getByText("Greet the barista")).toBeInTheDocument();
-    expect(screen.getByText(/let the barista know you're new in town/)).toBeInTheDocument();
+    expect(screen.getByText(/mention you're new in town/)).toBeInTheDocument();
 
     await act(async () => {
       await i18n.changeLanguage("zh");
     });
     rerender(<QuestLog quests={[cafeQuest]} />);
     expect(screen.getByText("跟咖啡师打招呼")).toBeInTheDocument();
-    expect(screen.getByText("用英语打招呼，告诉咖啡师你是新来的。")).toBeInTheDocument();
+    expect(screen.getByText("用英语跟咖啡师打招呼（比如说 hello，再提一句你是新来的）。")).toBeInTheDocument();
     expect(screen.queryByText("Greet the barista")).not.toBeInTheDocument();
   });
 });
