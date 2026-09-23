@@ -1,0 +1,9 @@
+{
+  "app": {
+    "title": "Games",
+    "subtitle": "Practice English by talking with NPCs and objects."
+  },
+  "language": {
+    "switch": "Language"
+  }
+}

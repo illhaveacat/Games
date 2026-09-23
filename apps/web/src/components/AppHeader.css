@@ -1,0 +1,8 @@
+.app-header {
+  text-align: center;
+}
+
+.app-header__subtitle {
+  margin: 4px 0 16px;
+  color: #444444;
+}
