@@ -39,3 +39,5 @@ Games/
 - 根 `package.json` 的 `test` 脚本用 `--workspaces --if-present`（或等效方式）聚合各 workspace 测试（`npm test` 是 `agents.json.verifyCommands` 里配置的验证命令，必须保持可跑通），这样某个 workspace 还没建好时不会拖垮整体验证。
 - 所有 workspace（含 `packages/shared`）一律用真正的 TypeScript（`.ts` + `tsconfig.json`）编写，不用 JSDoc 注释代替类型定义，避免 monorepo 里 JS/TS 混用增加维护成本。
 - 遵循 `docs/product.md` 的设计原则：学习内容即玩法本身、失败低成本即时反馈、NPC 有长期记忆、情境先于孤立词汇、语音是及格线。
+- 任务/等级/积分系统（2026-09-23 补充）：`packages/shared` 定义 Quest、QuestProgress、PlayerProgress 等共享类型；玩家进度（等级、积分、任务完成状态）用 SQLite 落盘持久化（而不是内存占位），具体驱动库由实现时选定，保持轻量、同步 API 优先，不引入需要额外部署的数据库服务。
+- 角色美术统一用代码生成的占位美术（Phaser 里用几何图形/tween 动画表现待机、说话等状态），不接入第三方文生图 API、不购买素材包，保持零外部成本，风格可以后续整体替换。
