@@ -53,6 +53,36 @@ describe("progressStore (in-memory)", () => {
     expect(repeat?.playerProgress.points).toBe(10);
     expect(repeat?.newlyUnlocked).toEqual([]);
   });
+
+  it("rolls back atomically if a crash happens mid-transaction (no partial 'awarded but not completed' state)", () => {
+    const db = createDatabase(":memory:");
+    const originalPrepare = db.prepare.bind(db);
+
+    // 模拟"加了分但还没标记完成"那一刻进程崩溃：让 UPDATE player_progress 这条语句抛错，
+    // setQuestStatus('completed') 根本不会被执行到。
+    db.prepare = (sql: string) => {
+      if (sql.startsWith("UPDATE player_progress")) {
+        throw new Error("simulated crash mid-transaction");
+      }
+      return originalPrepare(sql);
+    };
+
+    expect(() => completeQuest(db, "quest-greet-barista")).toThrow("simulated crash mid-transaction");
+
+    db.prepare = originalPrepare;
+
+    // 事务整体回滚：既没有加到经验/积分，任务状态也还是 not_started，不是"已发奖但未完成"的中间态
+    const progress = getPlayerProgress(db);
+    expect(progress.xp).toBe(0);
+    expect(progress.points).toBe(0);
+    expect(progress.completedQuestIds).toEqual([]);
+    const entry = listQuestsWithProgress(db).find((e) => e.quest.id === "quest-greet-barista");
+    expect(entry?.progress.status).toBe("not_started");
+
+    // 回滚之后同一个 db 连接依然可用，重试能正常成功发奖（不是被锁死/污染的连接）
+    const retry = completeQuest(db, "quest-greet-barista");
+    expect(retry?.playerProgress).toMatchObject({ level: 1, xp: 40, points: 10 });
+  });
 });
 
 describe("progressStore persistence across reconnects (real SQLite file)", () => {

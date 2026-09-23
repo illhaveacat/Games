@@ -3,7 +3,8 @@ import request from "supertest";
 import { createApp } from "../app.js";
 
 describe("POST /api/dialogue", () => {
-  const app = createApp();
+  // 这个测试不碰任务/进度逻辑，但 createApp 总会建一个 db；显式传 ":memory:" 避免碰真实数据文件。
+  const app = createApp({ dbPath: ":memory:" });
 
   it("returns a rule-based reply for a known npc matching a keyword", async () => {
     const res = await request(app)

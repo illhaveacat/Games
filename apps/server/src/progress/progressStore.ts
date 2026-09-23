@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { getLevelForXp, type PlayerProgress, type Quest, type QuestProgress, type QuestStatus } from "@games/shared";
 import { QUESTS, findQuestById, unlocksForLevel } from "./quests.js";
+import { withTransaction } from "./db.js";
 
 const DEFAULT_PLAYER_ID = "player-1";
 
@@ -81,38 +82,42 @@ export interface CompleteQuestResult {
 /**
  * 完成任务：已完成的任务再次 complete 是幂等的，不会重复发放经验/积分。
  * 未完成 -> 完成 时才真实累加 xp/points 并落盘，随后按等级变化算出本次新解锁的内容。
+ * "检查状态 + 加分 + 标记完成"整体包在一个事务里（withTransaction）：
+ * 进程在两次写之间崩溃、或异常在中途抛出，都会整体回滚，不会留下"已发奖但任务未标完成"的中间状态。
  */
 export function completeQuest(db: DatabaseSync, questId: string): CompleteQuestResult | null {
   const quest = findQuestById(questId);
   if (!quest) return null;
 
-  if (getQuestStatus(db, questId) === "completed") {
+  return withTransaction(db, () => {
+    if (getQuestStatus(db, questId) === "completed") {
+      return {
+        progress: { questId, status: "completed" },
+        playerProgress: getPlayerProgress(db),
+        newlyUnlocked: [],
+      };
+    }
+
+    const row = getOrCreatePlayerRow(db);
+    const levelBefore = getLevelForXp(row.xp);
+    const newXp = row.xp + quest.rewardXp;
+    const newPoints = row.points + quest.rewardPoints;
+    db.prepare("UPDATE player_progress SET xp = ?, points = ? WHERE player_id = ?").run(
+      newXp,
+      newPoints,
+      DEFAULT_PLAYER_ID,
+    );
+    setQuestStatus(db, questId, "completed");
+
+    const levelAfter = getLevelForXp(newXp);
+    const newlyUnlocked = unlocksForLevel(levelAfter)
+      .filter((unlock) => unlock.requiredLevel > levelBefore)
+      .map((unlock) => unlock.id);
+
     return {
       progress: { questId, status: "completed" },
       playerProgress: getPlayerProgress(db),
-      newlyUnlocked: [],
+      newlyUnlocked,
     };
-  }
-
-  const row = getOrCreatePlayerRow(db);
-  const levelBefore = getLevelForXp(row.xp);
-  const newXp = row.xp + quest.rewardXp;
-  const newPoints = row.points + quest.rewardPoints;
-  db.prepare("UPDATE player_progress SET xp = ?, points = ? WHERE player_id = ?").run(
-    newXp,
-    newPoints,
-    DEFAULT_PLAYER_ID,
-  );
-  setQuestStatus(db, questId, "completed");
-
-  const levelAfter = getLevelForXp(newXp);
-  const newlyUnlocked = unlocksForLevel(levelAfter)
-    .filter((unlock) => unlock.requiredLevel > levelBefore)
-    .map((unlock) => unlock.id);
-
-  return {
-    progress: { questId, status: "completed" },
-    playerProgress: getPlayerProgress(db),
-    newlyUnlocked,
-  };
+  });
 }
