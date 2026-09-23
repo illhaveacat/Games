@@ -58,10 +58,12 @@ describe("progressStore (in-memory)", () => {
     const db = createDatabase(":memory:");
     const originalPrepare = db.prepare.bind(db);
 
-    // 模拟"加了分但还没标记完成"那一刻进程崩溃：让 UPDATE player_progress 这条语句抛错，
-    // setQuestStatus('completed') 根本不会被执行到。
+    // 关键：注入点必须在 UPDATE player_progress 已经真正执行之后，测试才有意义——
+    // 否则 UPDATE 还没跑过，没有事务也会是同样的结果（xp 仍是 0），测不出原子性。
+    // 所以让 setQuestStatus 的 upsert（"INSERT INTO quest_progress ..."，发生在加分之后）抛错，
+    // 模拟"xp/points 已经写完、正准备标记任务完成"那一刻崩溃。
     db.prepare = (sql: string) => {
-      if (sql.startsWith("UPDATE player_progress")) {
+      if (sql.startsWith("INSERT INTO quest_progress")) {
         throw new Error("simulated crash mid-transaction");
       }
       return originalPrepare(sql);
