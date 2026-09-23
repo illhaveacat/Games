@@ -29,9 +29,23 @@ describe("createApp CORS wiring", () => {
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
 
-  it("defaults to '*' (any origin allowed) when corsAllowedOrigins isn't passed and CORS_ALLOWED_ORIGINS isn't set", async () => {
+  it("defaults to denying any cross-origin request when corsAllowedOrigins isn't passed and CORS_ALLOWED_ORIGINS isn't set (safe default — this API writes/reads persisted player progress, not public-read-only)", async () => {
     const previous = process.env.CORS_ALLOWED_ORIGINS;
     delete process.env.CORS_ALLOWED_ORIGINS;
+    try {
+      const app = createApp({ dbPath: ":memory:" });
+      const res = await request(app).get("/api/progress").set("Origin", "http://some-random-origin.example");
+      expect(res.status).toBe(200); // 同源/无 Origin 的请求不受影响，这里模拟的是"跨源请求被拒绝加头"
+      expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.CORS_ALLOWED_ORIGINS;
+      else process.env.CORS_ALLOWED_ORIGINS = previous;
+    }
+  });
+
+  it("only allows any origin when CORS_ALLOWED_ORIGINS is explicitly set to '*'", async () => {
+    const previous = process.env.CORS_ALLOWED_ORIGINS;
+    process.env.CORS_ALLOWED_ORIGINS = "*";
     try {
       const app = createApp({ dbPath: ":memory:" });
       const res = await request(app).get("/api/progress").set("Origin", "http://some-random-origin.example");
