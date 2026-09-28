@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { loadBaristaContent } from "../content/loadContent.js";
 import { createDatabase } from "../progress/db.js";
 import { getPlayerProgress, listQuestsWithProgress } from "../progress/progressStore.js";
-import { generateCafeReply, isCafeNpc, matchesStep } from "./cafeDialogueService.js";
+import { MAX_PLAYER_TEXT_LENGTH, generateCafeReply, isCafeNpc, matchesStep } from "./cafeDialogueService.js";
 
 describe("isCafeNpc", () => {
   it("recognizes the barista npc id and rejects others", () => {
@@ -495,6 +495,83 @@ describe("DIALOG-001 关键词/短语表在 content/ 里维护，新增说法不
     expect(followup.acceptNegated).toBe(true);
     for (const phrase of ["no thanks", "no sugar", "black", "for here", "to go", "take it with me"]) {
       expect(followup.keywords).toContain(phrase);
+    }
+  });
+});
+
+describe("DIALOG-001 返工：超长输入不能拖垮事件循环（审查 P1）", () => {
+  const order = BARISTA.steps[1];
+  const followup = BARISTA.steps[2];
+  /** 一个宽松的时间预算：线性实现在 100 KB 上只要几十毫秒；回到 O(n²) 会是数秒。 */
+  const BUDGET_MS = 500;
+
+  function timed<T>(run: () => T): { result: T; ms: number } {
+    const start = performance.now();
+    const result = run();
+    return { result, ms: performance.now() - start };
+  }
+
+  it.each([
+    ["is there tea ", "提问式 blocker 重复"],
+    ["no tea ", "否定词重复"],
+    ["tea ", "关键词重复（无标点）"],
+  ])("matchesStep：100 KB 的 %j（%s）在时间预算内返回", (unit) => {
+    const text = unit.repeat(Math.ceil(100_000 / unit.length));
+
+    const { ms } = timed(() => matchesStep(text, order));
+
+    expect(ms).toBeLessThan(BUDGET_MS);
+  });
+
+  it("matchesStep：超长输入的结果与短输入一致（线性实现没有改变语义）", () => {
+    expect(matchesStep("is there tea ".repeat(8000), order)).toBe(false);
+    expect(matchesStep("no tea ".repeat(14000), order)).toBe(false);
+    expect(matchesStep("tea ".repeat(25000), order)).toBe(true);
+    expect(matchesStep("no sugar ".repeat(11000), followup)).toBe(true);
+  });
+
+  it("generateCafeReply：只处理前 MAX_PLAYER_TEXT_LENGTH 个字符，超出部分被忽略而不是报错", () => {
+    const padding = "x ".repeat(MAX_PLAYER_TEXT_LENGTH / 2);
+
+    const beyondCap = dbAtStep(2);
+    const ignored = generateCafeReply(beyondCap, `${padding} coffee`);
+    expect(ignored.text).toBe(order.fallback);
+    expect(statusOf(beyondCap, QUEST_ORDER)).not.toBe("completed");
+
+    const withinCap = dbAtStep(2);
+    generateCafeReply(withinCap, `coffee ${padding}`);
+    expect(statusOf(withinCap, QUEST_ORDER)).toBe("completed");
+  });
+
+  it("generateCafeReply：100 KB 输入在时间预算内返回正常回复", () => {
+    const db = dbAtStep(2);
+
+    const { result, ms } = timed(() => generateCafeReply(db, "is there tea ".repeat(8000)));
+
+    expect(ms).toBeLessThan(BUDGET_MS);
+    expect(result.speakerId).toBe("npc-barista");
+    expect(result.text.length).toBeGreaterThan(0);
+  });
+});
+
+describe("DIALOG-001 返工：第 3 步单独一句 'No.' / 'Nope' 是对 'Would you like sugar?' 的自然回答", () => {
+  it.each(["No.", "no", "Nope.", "Nope!", "No, I'm good."])("%j 推进第 3 步", (text) => {
+    const db = dbAtStep(3);
+
+    generateCafeReply(db, text);
+
+    expect(statusOf(db, QUEST_FOLLOWUP)).toBe("completed");
+  });
+
+  it("只在第 3 步生效：第 2 步说 'No.'/'Nope' 不算点单，第 1 步也不算打招呼", () => {
+    for (const text of ["No.", "Nope"]) {
+      const atOrder = dbAtStep(2);
+      generateCafeReply(atOrder, text);
+      expect(statusOf(atOrder, QUEST_ORDER)).not.toBe("completed");
+
+      const atGreet = dbAtStep(1);
+      generateCafeReply(atGreet, text);
+      expect(statusOf(atGreet, QUEST_GREET)).not.toBe("completed");
     }
   });
 });

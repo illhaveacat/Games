@@ -5,6 +5,12 @@ import { completeQuest, getPlayerProgress, listQuestsWithProgress, startQuest } 
 
 const BARISTA = loadBaristaContent();
 
+/**
+ * 玩家一句话的处理长度上限（字符数）。超出部分直接截掉、不报错，路由照常返回 200 和咖啡师的回复——
+ * 正常一句英语远短于此；express.json() 默认允许 100 KB 的请求体，不设上限的话超长输入会白白占用事件循环。
+ */
+export const MAX_PLAYER_TEXT_LENGTH = 500;
+
 export function isCafeNpc(npcId: string): boolean {
   return npcId === BARISTA.id;
 }
@@ -61,6 +67,12 @@ function containsPhrase(tokens: string[], phraseTokens: string[]): boolean {
   return false;
 }
 
+/** tokens 里是否有 phrase 恰好在下标 end 处结束。 */
+function endsPhraseAt(tokens: string[], end: number, phrase: string[]): boolean {
+  const start = end - phrase.length + 1;
+  return start >= 0 && phrase.every((word, offset) => tokens[start + offset] === word);
+}
+
 /**
  * 按单词边界匹配，不是子串匹配——'this' 不再误命中 'hi'，'where' 不再误命中 'here'。
  * 多词短语（如 'to go'/'no thanks'）按分词后的连续子序列匹配，天然免疫子串误命中；
@@ -78,24 +90,33 @@ export function matchesStep(
   step: Pick<DialogueStep, "keywords" | "acceptNegated" | "blockers">,
 ): boolean {
   const allTokens = tokenize(playerText);
-  const clauseTokens = splitClauses(playerText).map(tokenize);
   const blockerPhrases = (step.blockers ?? []).map(tokenize).filter((phrase) => phrase.length > 0);
 
-  const isAnswerAt = (tokens: string[], index: number): boolean => {
-    const before = tokens.slice(0, index);
-    if (!step.acceptNegated && before.some((token) => NEGATION_WORDS.has(token))) return false;
-    return !blockerPhrases.some((phrase) => containsPhrase(before, phrase));
-  };
-
-  return step.keywords.some((keyword) => {
+  const phraseKeywords: string[][] = [];
+  const wordKeywords = new Set<string>();
+  for (const keyword of step.keywords) {
     const keywordTokens = tokenize(keyword);
-    if (keywordTokens.length === 0) return false;
+    if (keywordTokens.length === 1) wordKeywords.add(keywordTokens[0]);
+    else if (keywordTokens.length > 1) phraseKeywords.push(keywordTokens);
+  }
 
-    if (keywordTokens.length > 1) return containsPhrase(allTokens, keywordTokens);
+  if (phraseKeywords.some((phrase) => containsPhrase(allTokens, phrase))) return true;
+  if (wordKeywords.size === 0) return false;
 
-    const [word] = keywordTokens;
-    return clauseTokens.some((tokens) => tokens.some((token, index) => token === word && isAnswerAt(tokens, index)));
-  });
+  // 每个分句只从左到右扫一遍，边扫边记"前面是否已出现否定词 / blocker 短语"，整体是线性的。
+  // （曾经每命中一个关键词就 slice 前缀重扫，输入很长时是 O(n²)，见 DIALOG-001 审查 P1。）
+  return splitClauses(playerText)
+    .map(tokenize)
+    .some((tokens) => {
+      let negated = false;
+      let blocked = false;
+      for (let i = 0; i < tokens.length; i++) {
+        if (wordKeywords.has(tokens[i]) && (step.acceptNegated || !negated) && !blocked) return true;
+        if (NEGATION_WORDS.has(tokens[i])) negated = true;
+        if (!blocked && blockerPhrases.some((phrase) => endsPhraseAt(tokens, i, phrase))) blocked = true;
+      }
+      return false;
+    });
 }
 
 /**
@@ -107,7 +128,7 @@ export function matchesStep(
  * 这是"解锁效果在关卡里能被真实观察到"的具体实现，不只是 API 数据。
  */
 export function generateCafeReply(db: DatabaseSync, playerText: unknown): DialogueResponse {
-  const text = typeof playerText === "string" ? playerText : "";
+  const text = typeof playerText === "string" ? playerText.slice(0, MAX_PLAYER_TEXT_LENGTH) : "";
   const entries = listQuestsWithProgress(db);
   const currentStep = BARISTA.steps.find((step) => {
     const entry = entries.find((e) => e.quest.id === step.questId);

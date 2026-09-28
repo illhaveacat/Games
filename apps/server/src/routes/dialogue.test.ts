@@ -134,3 +134,22 @@ describe("POST /api/dialogue with the cafe NPC (npc-barista) drives the quest ch
     }
   });
 });
+
+describe("POST /api/dialogue 超长输入（DIALOG-001 返工）", () => {
+  it("接近 express.json 默认上限的 100 KB playerText：仍返回 200 和正常回复，并且很快", async () => {
+    const app = createApp({ dbPath: ":memory:" });
+    await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "hello" });
+
+    for (const unit of ["is there tea ", "no tea ", "tea "]) {
+      const playerText = unit.repeat(Math.floor(99_000 / unit.length));
+      const start = performance.now();
+      const res = await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText });
+      const ms = performance.now() - start;
+
+      expect(res.status).toBe(200);
+      expect(res.body.speakerId).toBe("npc-barista");
+      expect(res.body.text.length).toBeGreaterThan(0);
+      expect(ms).toBeLessThan(1500);
+    }
+  });
+});
