@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBaristaContent, loadCafeScene, loadQuests } from "./loadContent.js";
+import { loadBaristaContent, loadCafeScene, loadQuests, validateBaristaContent } from "./loadContent.js";
 
 describe("loadQuests", () => {
   it("loads and validates the cafe-opening quest chain from content/quests/cafe-opening.json", () => {
@@ -39,6 +39,50 @@ describe("loadBaristaContent", () => {
     expect(barista.afterAllCompleteReply.length).toBeGreaterThan(0);
     expect(barista.unlock.id.length).toBeGreaterThan(0);
     expect(barista.unlock.requiredLevel).toBeGreaterThan(1);
+  });
+
+  it("gives every step its own in-context follow-up question (DIALOG-001)", () => {
+    const barista = loadBaristaContent();
+    for (const step of barista.steps) {
+      expect(step.fallback?.length ?? 0).toBeGreaterThan(0);
+      expect(step.fallback).not.toBe(barista.fallback);
+    }
+  });
+});
+
+describe("validateBaristaContent", () => {
+  const base = () => structuredClone(loadBaristaContent());
+
+  it("accepts the shipped content", () => {
+    expect(() => validateBaristaContent(base())).not.toThrow();
+  });
+
+  it("rejects a step whose keywords are missing, empty or contain blank strings (typo protection for hand-edited content)", () => {
+    const missing = base();
+    delete (missing.steps[0] as { keywords?: string[] }).keywords;
+    expect(() => validateBaristaContent(missing)).toThrow(/steps\[0\]\.keywords/);
+
+    const empty = base();
+    empty.steps[1].keywords = [];
+    expect(() => validateBaristaContent(empty)).toThrow(/steps\[1\]\.keywords/);
+
+    const blank = base();
+    blank.steps[2].keywords = ["sugar", "  "];
+    expect(() => validateBaristaContent(blank)).toThrow(/steps\[2\]\.keywords/);
+  });
+
+  it("rejects malformed optional fields (blockers / fallback / acceptNegated)", () => {
+    const blockers = base();
+    (blockers.steps[1] as { blockers?: unknown }).blockers = "is there";
+    expect(() => validateBaristaContent(blockers)).toThrow(/blockers/);
+
+    const fallback = base();
+    (fallback.steps[0] as { fallback?: unknown }).fallback = "";
+    expect(() => validateBaristaContent(fallback)).toThrow(/fallback/);
+
+    const negated = base();
+    (negated.steps[2] as { acceptNegated?: unknown }).acceptNegated = "yes";
+    expect(() => validateBaristaContent(negated)).toThrow(/acceptNegated/);
   });
 });
 

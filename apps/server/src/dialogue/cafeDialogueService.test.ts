@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { DatabaseSync } from "node:sqlite";
+import { loadBaristaContent } from "../content/loadContent.js";
 import { createDatabase } from "../progress/db.js";
 import { getPlayerProgress, listQuestsWithProgress } from "../progress/progressStore.js";
-import { generateCafeReply, isCafeNpc } from "./cafeDialogueService.js";
+import { generateCafeReply, isCafeNpc, matchesStep } from "./cafeDialogueService.js";
 
 describe("isCafeNpc", () => {
   it("recognizes the barista npc id and rejects others", () => {
@@ -196,5 +198,303 @@ describe("generateCafeReply", () => {
 
       expect(getPlayerProgress(db).xp).toBe(before);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// DIALOG-001：补齐常见说法 + 关键词只在当前步骤生效 + 每步语境化追问 + 词表在 content/ 里维护
+// ---------------------------------------------------------------------------------------------
+
+const BARISTA = loadBaristaContent();
+const QUEST_GREET = "quest-greet-barista";
+const QUEST_ORDER = "quest-order-coffee";
+const QUEST_FOLLOWUP = "quest-answer-followup";
+const CURLY = "’";
+
+/** 让一个全新的库停在第 n 步（1=打招呼，2=点单，3=加糖/堂食打包追问），靠真实对话推进。 */
+function dbAtStep(step: 1 | 2 | 3): DatabaseSync {
+  const db = createDatabase(":memory:");
+  if (step >= 2) generateCafeReply(db, "hello");
+  if (step >= 3) generateCafeReply(db, "coffee and a pastry");
+  return db;
+}
+
+function statusOf(db: DatabaseSync, questId: string): string | undefined {
+  return listQuestsWithProgress(db).find((e) => e.quest.id === questId)?.progress.status;
+}
+
+describe("DIALOG-001 第 3 步（加糖/堂食打包追问）：常见正确回答都能推进", () => {
+  it.each([
+    "No, thanks.",
+    "No sugar, thanks.",
+    "I don't want sugar.",
+    "Just black, please.",
+    "For here.",
+    "To go, please.",
+    "I'll take it with me.",
+    // 同一类说法的变体（语音识别/手机智能标点常见）
+    "No thank you",
+    "no thanks",
+    `I don${CURLY}t want sugar.`,
+    `I${CURLY}ll take it with me.`,
+    "Here, please.",
+    "Without sugar, please.",
+    "Take away, please.",
+    "I'll take it away",
+    "Takeout please",
+    "I'll eat here.",
+    "I'd like to sit here.",
+    "sugar please",
+    "Two sugars, and to go",
+  ])("%s", (utterance) => {
+    const db = dbAtStep(3);
+
+    const reply = generateCafeReply(db, utterance);
+
+    expect(statusOf(db, QUEST_FOLLOWUP)).toBe("completed");
+    expect(getPlayerProgress(db).xp).toBe(180);
+    expect(reply.text.toLowerCase()).toContain("perfect");
+  });
+
+  it("STAGE-001 的否定反例仍然不推进点单：'I don't want coffee' / 弯引号 don’t（第 2 步）", () => {
+    for (const text of [
+      "I don't want coffee, is there tea?",
+      `I don${CURLY}t want coffee, is there tea?`,
+      "I don't want coffee",
+      `I don${CURLY}t want coffee`,
+    ]) {
+      const db = dbAtStep(2);
+      const before = getPlayerProgress(db).xp;
+
+      const reply = generateCafeReply(db, text);
+
+      expect(getPlayerProgress(db).xp).toBe(before);
+      expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
+      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+    }
+  });
+
+  it.each(["Where is the restroom?", "I don't want coffee", "Do you have sugar?", "What's the wifi password?", "hello again"])(
+    "第 3 步不会被无关/提问式句子误推进：%s",
+    (utterance) => {
+      const db = dbAtStep(3);
+
+      const reply = generateCafeReply(db, utterance);
+
+      expect(statusOf(db, QUEST_FOLLOWUP)).not.toBe("completed");
+      expect(getPlayerProgress(db).xp).toBe(100);
+      expect(reply.text.toLowerCase()).not.toContain("perfect, got it");
+    },
+  );
+});
+
+describe("DIALOG-001 第 2 步（点单）：更多饮品/点心和常见点单句型", () => {
+  it.each(["latte", "cappuccino", "americano", "espresso", "tea", "cake", "cookie", "sandwich"])(
+    "认得 %s",
+    (item) => {
+      const db = dbAtStep(2);
+
+      const reply = generateCafeReply(db, `A ${item}, please.`);
+
+      expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+      expect(getPlayerProgress(db).xp).toBe(100);
+      expect(reply.text.toLowerCase()).toContain("coming right up");
+    },
+  );
+
+  it.each([
+    "Can I get a latte?",
+    "Could I get a cappuccino, please?",
+    "I'd like a cookie.",
+    `I${CURLY}d like a cookie.`,
+    "I'll have an americano.",
+    "I will have a sandwich",
+    "Can I get some tea?",
+    // 句型本身就够了：点的东西不在词表里（红茶拿铁之外的东西）也算点单
+    "Can I get a hot chocolate?",
+    "I'd like a green smoothie, please.",
+    "I'll have a flat white.",
+  ])("认得点单句型：%s", (utterance) => {
+    const db = dbAtStep(2);
+
+    generateCafeReply(db, utterance);
+
+    expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+  });
+
+  it.each([
+    "Is there tea?",
+    "Do you have cake?",
+    "What's a latte?",
+    "How much is a sandwich?",
+    "I'd like to know where the restroom is.",
+    "Can I get directions to the station?",
+    "I don't want a latte",
+    "No cake for me",
+  ])("不是点单的句子不推进：%s", (utterance) => {
+    const db = dbAtStep(2);
+
+    const reply = generateCafeReply(db, utterance);
+
+    expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
+    expect(getPlayerProgress(db).xp).toBe(40);
+    expect(reply.text.toLowerCase()).not.toContain("coming right up");
+  });
+
+  it("先否定一个再点另一个（'No coffee, a tea please'）算点单", () => {
+    const db = dbAtStep(2);
+
+    generateCafeReply(db, "No coffee, a tea please");
+
+    expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+  });
+});
+
+describe("DIALOG-001 关键词只在当前进行中的步骤里生效", () => {
+  it("第 1 步说点单词汇：不推进任何步骤，也不发奖", () => {
+    for (const text of ["coffee and a pastry", "Can I get a latte?", "I'd like a cookie", "a tea, please"]) {
+      const db = dbAtStep(1);
+
+      generateCafeReply(db, text);
+
+      expect(statusOf(db, QUEST_GREET)).not.toBe("completed");
+      expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
+      expect(statusOf(db, QUEST_FOLLOWUP)).not.toBe("completed");
+      expect(getPlayerProgress(db)).toMatchObject({ xp: 0, points: 0 });
+    }
+  });
+
+  it("第 1 步说追问的回答（here / to go / no sugar / no thanks）：不推进任何步骤", () => {
+    for (const text of ["For here.", "To go, please.", "No sugar, thanks.", "No, thanks.", "I'll take it with me."]) {
+      const db = dbAtStep(1);
+
+      generateCafeReply(db, text);
+
+      expect(getPlayerProgress(db).xp).toBe(0);
+      expect(getPlayerProgress(db).completedQuestIds).toEqual([]);
+    }
+  });
+
+  it("第 2 步说 'here' 或追问回答：不完成点单，也不会跳过去完成第 3 步", () => {
+    for (const text of ["here", "For here.", "To go, please.", "No sugar, thanks.", "No, thanks.", "Just black."]) {
+      const db = dbAtStep(2);
+
+      generateCafeReply(db, text);
+
+      expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
+      expect(statusOf(db, QUEST_FOLLOWUP)).not.toBe("completed");
+      expect(getPlayerProgress(db).xp).toBe(40);
+    }
+  });
+
+  it("第 3 步说打招呼或点单词汇：不发奖、不重复完成前面的步骤", () => {
+    for (const text of ["hello!", "Hi there", "coffee and a pastry", "Can I get a latte?"]) {
+      const db = dbAtStep(3);
+
+      generateCafeReply(db, text);
+
+      expect(statusOf(db, QUEST_FOLLOWUP)).not.toBe("completed");
+      expect(getPlayerProgress(db).xp).toBe(100);
+    }
+  });
+
+  it("一句话只推进当前这一步，不会一口气连过多步（'Hello, a latte, for here'）", () => {
+    const db = dbAtStep(1);
+
+    generateCafeReply(db, "Hello, a latte, for here");
+
+    expect(getPlayerProgress(db).completedQuestIds).toEqual([QUEST_GREET]);
+    expect(getPlayerProgress(db).xp).toBe(40);
+  });
+});
+
+describe("DIALOG-001 没听懂时是符合当前步骤语境的自然追问，不是通用的'我没听懂'", () => {
+  it("第 1 步：邀请对方打招呼", () => {
+    const reply = generateCafeReply(dbAtStep(1), "blah blah");
+
+    expect(reply.text).not.toBe(BARISTA.fallback);
+    expect(reply.text.toLowerCase()).toContain("hello");
+  });
+
+  it("第 2 步：再问一次想要什么，并提示有哪些选择", () => {
+    const reply = generateCafeReply(dbAtStep(2), "blah blah");
+
+    expect(reply.text).not.toBe(BARISTA.fallback);
+    expect(reply.text.toLowerCase()).toContain("what can i get");
+    expect(reply.text.toLowerCase()).toContain("coffee");
+  });
+
+  it("第 3 步：再问一次要不要糖、堂食还是打包", () => {
+    const reply = generateCafeReply(dbAtStep(3), "blah blah");
+
+    expect(reply.text).not.toBe(BARISTA.fallback);
+    const lower = reply.text.toLowerCase();
+    expect(lower).toContain("sugar");
+    expect(lower).toContain("for here");
+    expect(lower).toContain("to go");
+  });
+
+  it("追问不是失败：不含 fail/wrong，并且没听懂不发奖", () => {
+    for (const step of [1, 2, 3] as const) {
+      const db = dbAtStep(step);
+      const before = getPlayerProgress(db).xp;
+
+      const reply = generateCafeReply(db, "blah blah");
+
+      expect(reply.text.toLowerCase()).not.toMatch(/fail|wrong|error/);
+      expect(getPlayerProgress(db).xp).toBe(before);
+    }
+  });
+});
+
+describe("DIALOG-001 关键词/短语表在 content/ 里维护，新增说法不需要改代码", () => {
+  it("matchesStep 是纯数据驱动：只换关键词表，同一份代码就认得新说法", () => {
+    const text = "I'd like an oat flat white";
+
+    expect(matchesStep(text, { keywords: ["latte"] })).toBe(false);
+    expect(matchesStep(text, { keywords: ["latte", "flat white"] })).toBe(true);
+    expect(matchesStep(text, { keywords: ["oat"] })).toBe(true);
+  });
+
+  it("acceptNegated 由内容开关：同一句 'I don't want sugar'，选择题步骤算回答、普通步骤不算", () => {
+    const text = "I don't want sugar";
+
+    expect(matchesStep(text, { keywords: ["sugar"] })).toBe(false);
+    expect(matchesStep(text, { keywords: ["sugar"], acceptNegated: true })).toBe(true);
+  });
+
+  it("blockers 由内容维护：加一个提问短语就能挡住一类误判，去掉就恢复", () => {
+    const text = "Is there tea?";
+
+    expect(matchesStep(text, { keywords: ["tea"] })).toBe(true);
+    expect(matchesStep(text, { keywords: ["tea"], blockers: ["is there"] })).toBe(false);
+  });
+
+  it("短语跨逗号也能命中（'No, thanks.'），单个词仍按词边界（'where' 不命中 'here'）", () => {
+    expect(matchesStep("No, thanks.", { keywords: ["no thanks"] })).toBe(true);
+    expect(matchesStep("Where is it", { keywords: ["here"] })).toBe(false);
+    expect(matchesStep("'hello'", { keywords: ["hello"] })).toBe(true);
+  });
+
+  it("内容自洽：每条关键词/短语单独说出来，都能命中它所在的那一步（防止内容里写错字/大小写/弯引号）", () => {
+    for (const step of BARISTA.steps) {
+      for (const keyword of step.keywords) {
+        expect(matchesStep(keyword, step), `${step.questId}: "${keyword}"`).toBe(true);
+      }
+    }
+  });
+
+  it("内容里包含验收要求的全部说法", () => {
+    const [, order, followup] = BARISTA.steps;
+    for (const item of ["latte", "cappuccino", "americano", "espresso", "tea", "cake", "cookie", "sandwich"]) {
+      expect(order.keywords).toContain(item);
+    }
+    for (const pattern of ["can i get a", "i'd like a", "i'll have a"]) {
+      expect(order.keywords).toContain(pattern);
+    }
+    expect(followup.acceptNegated).toBe(true);
+    for (const phrase of ["no thanks", "no sugar", "black", "for here", "to go", "take it with me"]) {
+      expect(followup.keywords).toContain(phrase);
+    }
   });
 });

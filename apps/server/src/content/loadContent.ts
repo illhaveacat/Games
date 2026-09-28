@@ -18,7 +18,14 @@ function readJson<T>(relativePath: string): T {
 
 export interface DialogueStep {
   questId: string;
+  /** 单个词按词边界匹配（且默认不能被否定词修饰）；含空格的是短语，按连续词序列匹配，不做否定检测。 */
   keywords: string[];
+  /** 为 true 时单个词即使被否定（"I don't want sugar"）也算回答了这一步，适用于"要不要/哪种"这类选择题。 */
+  acceptNegated?: boolean;
+  /** 出现在关键词之前（同一分句）的提问式短语（"is there"/"what's"…），此时关键词是在问而不是在答。 */
+  blockers?: string[];
+  /** 这一步没听懂时的追问；缺省用 NpcContent.fallback。 */
+  fallback?: string;
   reply: string;
 }
 
@@ -59,8 +66,33 @@ export function loadQuests(): Quest[] {
   return raw.map((quest) => createQuest(quest));
 }
 
+function assertStringArray(value: unknown, label: string, { nonEmpty }: { nonEmpty: boolean }): void {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.trim() === "")) {
+    throw new Error(`content/npcs/barista.json: ${label} 必须是非空字符串数组`);
+  }
+  if (nonEmpty && value.length === 0) {
+    throw new Error(`content/npcs/barista.json: ${label} 不能为空`);
+  }
+}
+
+/** 内容包是人手写的：字段写错（拼错键名、漏写数组）在加载时就报出来，而不是等玩家说话时才崩。 */
+export function validateBaristaContent(content: NpcContent): NpcContent {
+  content.steps.forEach((step, i) => {
+    const label = `steps[${i}]`;
+    assertStringArray(step.keywords, `${label}.keywords`, { nonEmpty: true });
+    if (step.blockers !== undefined) assertStringArray(step.blockers, `${label}.blockers`, { nonEmpty: false });
+    if (step.fallback !== undefined && (typeof step.fallback !== "string" || step.fallback.trim() === "")) {
+      throw new Error(`content/npcs/barista.json: ${label}.fallback 必须是非空字符串`);
+    }
+    if (step.acceptNegated !== undefined && typeof step.acceptNegated !== "boolean") {
+      throw new Error(`content/npcs/barista.json: ${label}.acceptNegated 必须是布尔值`);
+    }
+  });
+  return content;
+}
+
 export function loadBaristaContent(): NpcContent {
-  return readJson<NpcContent>("npcs/barista.json");
+  return validateBaristaContent(readJson<NpcContent>("npcs/barista.json"));
 }
 
 export function loadCafeScene(): SceneContent {
