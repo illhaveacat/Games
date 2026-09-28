@@ -82,4 +82,74 @@ describe("POST /api/dialogue with the cafe NPC (npc-barista) drives the quest ch
       true,
     );
   });
+
+  it("DIALOG-001: the chain can be walked with the newly supported phrasings, with in-context follow-ups when not understood", async () => {
+    const app = createApp({ dbPath: ":memory:" });
+    const say = async (playerText: string) => {
+      const res = await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText });
+      expect(res.status).toBe(200);
+      expect(res.body.speakerId).toBe("npc-barista");
+      return res.body.text as string;
+    };
+    const completed = async () => ((await request(app).get("/api/progress")).body.completedQuestIds as string[]).length;
+
+    // 第 1 步：点单词汇不算打招呼；没听懂 -> 邀请打招呼
+    expect((await say("Can I get a latte?")).toLowerCase()).toContain("hello");
+    expect(await completed()).toBe(0);
+    expect((await say("Good morning!")).toLowerCase()).toContain("welcome");
+    expect(await completed()).toBe(1);
+
+    // 第 2 步：'here' 不算点单；提问不算点单；没听懂 -> 再问想要什么
+    expect((await say("For here.")).toLowerCase()).toContain("what can i get");
+    expect((await say("Is there tea?")).toLowerCase()).toContain("what can i get");
+    expect(await completed()).toBe(1);
+    expect((await say("Can I get a cappuccino and a cookie, please?")).toLowerCase()).toContain("coming right up");
+    expect(await completed()).toBe(2);
+
+    // 第 3 步：没听懂 -> 再问要不要糖、堂食还是打包；'No, thanks.' 算回答
+    const reask = (await say("Hmm, let me think")).toLowerCase();
+    expect(reask).toContain("sugar");
+    expect(reask).toContain("for here");
+    expect(reask).toContain("to go");
+    expect(await completed()).toBe(2);
+    expect((await say("No, thanks.")).toLowerCase()).toContain("perfect");
+    expect(await completed()).toBe(3);
+
+    const progress = await request(app).get("/api/progress");
+    expect(progress.body).toMatchObject({ level: 2, xp: 180, points: 45 });
+  });
+
+  it("DIALOG-001: STAGE-001's negation counter-examples still do not advance the order step over HTTP (straight and curly apostrophes)", async () => {
+    for (const apostrophe of ["'", "’"]) {
+      const app = createApp({ dbPath: ":memory:" });
+      await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "hello" });
+
+      const res = await request(app)
+        .post("/api/dialogue")
+        .send({ npcId: "npc-barista", playerText: `I don${apostrophe}t want coffee, is there tea?` });
+
+      expect(res.body.text.toLowerCase()).not.toContain("coming right up");
+      const progress = await request(app).get("/api/progress");
+      expect(progress.body.xp).toBe(40);
+    }
+  });
+});
+
+describe("POST /api/dialogue 超长输入（DIALOG-001 返工）", () => {
+  it("接近 express.json 默认上限的 100 KB playerText：仍返回 200 和正常回复，并且很快", async () => {
+    const app = createApp({ dbPath: ":memory:" });
+    await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "hello" });
+
+    for (const unit of ["is there tea ", "no tea ", "tea "]) {
+      const playerText = unit.repeat(Math.floor(99_000 / unit.length));
+      const start = performance.now();
+      const res = await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText });
+      const ms = performance.now() - start;
+
+      expect(res.status).toBe(200);
+      expect(res.body.speakerId).toBe("npc-barista");
+      expect(res.body.text.length).toBeGreaterThan(0);
+      expect(ms).toBeLessThan(1500);
+    }
+  });
 });
