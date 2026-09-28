@@ -2,7 +2,7 @@ import type Phaser from "phaser";
 
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 480;
-const COUNTER_TOP_Y = 340;
+export const COUNTER_TOP_Y = 340;
 
 const WALL_COLOR = 0x2b2147;
 const WALL_TRIM_COLOR = 0x1d2b53;
@@ -20,27 +20,36 @@ const CUP_COLOR = 0xf5f1e8;
 
 /**
  * 咖啡馆背景：墙 + 柜台 + 咖啡机 + 菜单板 + 吊灯/绿植/杯子这几样装饰，全部代码绘制。
- * 独立模块，只暴露 container（挂进场景）和 destroy()，以后要整体换成正式美术只需要换这一个文件。
+ * 独立模块，以后要整体换成正式美术只需要换这一个文件。
+ * 分两层：back（墙/菜单板/吊灯/绿植/咖啡机）在角色后面，front（柜台台面和台面上的杯子）在角色前面，
+ * 这样角色看起来是站在柜台后面。层级用 depth 表达，场景里创建对象的先后顺序不影响遮挡。
  */
+export const CAFE_BACK_DEPTH = 0;
+export const CAFE_FRONT_DEPTH = 20;
+
 export class CafeBackground {
-  readonly container: Phaser.GameObjects.Container;
+  readonly back: Phaser.GameObjects.Container;
+  readonly front: Phaser.GameObjects.Container;
 
   constructor(scene: Phaser.Scene) {
-    this.container = scene.add.container(0, 0);
-
-    this.container.add([
+    this.back = scene.add.container(0, 0);
+    this.back.setDepth(CAFE_BACK_DEPTH);
+    this.back.add([
       drawWall(scene),
       drawMenuBoard(scene),
       drawLamp(scene),
       drawPlant(scene),
-      drawCounter(scene),
       drawCoffeeMachine(scene),
-      drawCupStack(scene),
     ]);
+
+    this.front = scene.add.container(0, 0);
+    this.front.setDepth(CAFE_FRONT_DEPTH);
+    this.front.add([drawCounter(scene), drawCupStack(scene)]);
   }
 
   destroy(): void {
-    this.container.destroy();
+    this.back.destroy();
+    this.front.destroy();
   }
 }
 
@@ -113,9 +122,17 @@ function drawCoffeeMachine(scene: Phaser.Scene): Phaser.GameObjects.Graphics {
   g.fillStyle(MACHINE_TRIM_COLOR, 1);
   g.fillRoundedRect(x - 55, baseY - 90, 110, 14, { tl: 8, tr: 8, bl: 0, br: 0 });
   g.fillStyle(0x1a1a1a, 1);
-  g.fillCircle(x - 22, baseY - 45, 7);
-  g.fillCircle(x + 22, baseY - 45, 7);
-  g.fillRect(x - 6, baseY - 40, 12, 26);
+  g.fillCircle(x - 34, baseY - 58, 5); // 旋钮
+  g.fillCircle(x + 34, baseY - 58, 5);
+  g.fillStyle(0x6ad07a, 1);
+  g.fillCircle(x, baseY - 58, 3); // 指示灯
+  g.fillStyle(0x1a1a1a, 1);
+  g.fillRect(x - 14, baseY - 48, 28, 8); // 出水口
+  g.fillRect(x - 4, baseY - 40, 8, 6);
+  g.fillStyle(0x2a2a2a, 1);
+  g.fillRect(x - 24, baseY - 12, 48, 12); // 接水盘
+  g.fillStyle(CUP_COLOR, 1);
+  g.fillRoundedRect(x - 9, baseY - 30, 18, 18, 3); // 接着的咖啡杯
   return g;
 }
 

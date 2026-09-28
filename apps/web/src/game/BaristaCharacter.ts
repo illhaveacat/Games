@@ -43,6 +43,7 @@ export class BaristaCharacter {
   private breatheTween?: Phaser.Tweens.Tween;
   private nodTween?: Phaser.Tweens.Tween;
   private gestureTween?: Phaser.Tweens.Tween;
+  private blinkTween?: Phaser.Tweens.Tween;
   private blinkTimer?: Phaser.Time.TimerEvent;
   private mouthTimer?: Phaser.Time.TimerEvent;
   private mouthOpen = false;
@@ -91,6 +92,7 @@ export class BaristaCharacter {
     this.breatheTween?.stop();
     this.nodTween?.stop();
     this.gestureTween?.stop();
+    this.blinkTween?.stop();
     this.blinkTimer?.remove();
     this.mouthTimer?.remove();
     this.container.destroy();
@@ -117,14 +119,15 @@ export class BaristaCharacter {
     this.blinkTimer = this.scene.time.addEvent({
       delay,
       callback: () => {
+        if (this.destroyed) return;
         this.blink();
-        if (!this.destroyed) this.scheduleNextBlink();
+        this.scheduleNextBlink();
       },
     });
   }
 
   private blink(): void {
-    this.scene.tweens.add({
+    this.blinkTween = this.scene.tweens.add({
       targets: this.eyes,
       scaleY: 0.08,
       duration: 70,
@@ -153,6 +156,7 @@ export class BaristaCharacter {
   }
 
   private startNodGesture(): void {
+    if (this.nodTween) return;
     this.nodTween = this.scene.tweens.add({
       targets: this.headGroup,
       y: -3,
@@ -163,7 +167,7 @@ export class BaristaCharacter {
     });
     this.gestureTween = this.scene.tweens.add({
       targets: this.rightArm,
-      angle: -10,
+      angle: -18,
       duration: 260,
       ease: "Sine.easeInOut",
       yoyo: true,
@@ -188,13 +192,14 @@ function drawBody(scene: Phaser.Scene): Phaser.GameObjects.Graphics {
   return g;
 }
 
+/** 以肩膀为原点绘制，这样对 Graphics 设置 angle 就是绕肩膀摆动。 */
 function drawArm(scene: Phaser.Scene, side: -1 | 1): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
+  g.setPosition(side * 40, -88);
   g.fillStyle(SHIRT_COLOR, 1);
-  const x = side * 40;
-  g.fillRoundedRect(x - 8, -88, 16, 62, 8);
+  g.fillRoundedRect(-8, 0, 16, 62, 8);
   g.fillStyle(SKIN_COLOR, 1);
-  g.fillCircle(x, -26, 9); // 手
+  g.fillCircle(0, 62, 9); // 手
   return g;
 }
 
