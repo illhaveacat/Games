@@ -103,7 +103,9 @@ describe("POST /api/dialogue with the cafe NPC (npc-barista) drives the quest ch
     expect((await say("For here.")).toLowerCase()).toContain("what can i get");
     expect((await say("Is there tea?")).toLowerCase()).toContain("what can i get");
     expect(await completed()).toBe(1);
-    expect((await say("Can I get a cappuccino and a cookie, please?")).toLowerCase()).toContain("coming right up");
+    const orderReply = (await say("Can I get a cappuccino and a cookie, please?")).toLowerCase();
+    expect(orderReply).toContain("one cappuccino and a cookie");
+    expect(orderReply).toContain("got it");
     expect(await completed()).toBe(2);
 
     // 第 3 步：没听懂 -> 再问要不要糖、堂食还是打包；'No, thanks.' 算回答
@@ -128,10 +130,49 @@ describe("POST /api/dialogue with the cafe NPC (npc-barista) drives the quest ch
         .post("/api/dialogue")
         .send({ npcId: "npc-barista", playerText: `I don${apostrophe}t want coffee, is there tea?` });
 
-      expect(res.body.text.toLowerCase()).not.toContain("coming right up");
+      expect(res.body.text.toLowerCase()).not.toContain("got it");
       const progress = await request(app).get("/api/progress");
       expect(progress.body.xp).toBe(40);
     }
+  });
+
+  it("DIALOG-002: the barista's reply names what the player actually ordered, for several combinations", async () => {
+    const combos: Array<[string, string, string]> = [
+      ["Can I get a latte and a sandwich, please?", "latte", "sandwich"],
+      ["I'd like a tea and a cake.", "tea", "cake"],
+      ["I'll have a cappuccino and a cookie", "cappuccino", "cookie"],
+      ["Could I get an americano and a croissant?", "americano", "croissant"],
+    ];
+
+    for (const [playerText, drink, pastry] of combos) {
+      const app = createApp({ dbPath: ":memory:" });
+      await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "hello" });
+
+      const res = await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText });
+
+      expect(res.status).toBe(200);
+      expect(res.body.text.toLowerCase()).toContain(`one ${drink} and a ${pastry}`);
+
+      // 第 3 步不受影响：糖/堂食打包的追问和推进照旧
+      const followup = await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "no sugar, to go" });
+      expect(followup.body.text.toLowerCase()).toContain("perfect");
+      const progress = await request(app).get("/api/progress");
+      expect(progress.body.completedQuestIds.sort()).toEqual(
+        ["quest-greet-barista", "quest-order-coffee", "quest-answer-followup"].sort(),
+      );
+    }
+  });
+
+  it("DIALOG-002: falls back to the generic 'coffee'/'pastry' names when the player doesn't name a specific item", async () => {
+    const app = createApp({ dbPath: ":memory:" });
+    await request(app).post("/api/dialogue").send({ npcId: "npc-barista", playerText: "hello" });
+
+    const res = await request(app)
+      .post("/api/dialogue")
+      .send({ npcId: "npc-barista", playerText: "Can I get a hot chocolate?" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.text.toLowerCase()).toContain("one coffee and a pastry");
   });
 });
 

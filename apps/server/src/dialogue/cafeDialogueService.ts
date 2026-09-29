@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { DialogueResponse } from "@games/shared";
-import { loadBaristaContent, type DialogueStep } from "../content/loadContent.js";
+import { loadBaristaContent, type DialogueStep, type OrderItemGroup } from "../content/loadContent.js";
 import { completeQuest, getPlayerProgress, listQuestsWithProgress, startQuest } from "../progress/progressStore.js";
 
 const BARISTA = loadBaristaContent();
@@ -120,6 +120,30 @@ export function matchesStep(
 }
 
 /**
+ * 玩家点单里，某一类物品（饮品/点心）具体是哪个：按 options 顺序找第一个命中的，判定复用 matchesStep
+ * 本身的否定/blocker 规则（跟"这一步算不算点单"用的是同一套语境判断，不会出现"判定没点但复述了具体名字"）。
+ * 都没命中就用 default（例如玩家只说了句型 "Can I get a hot chocolate?"，东西不在词表里）。
+ */
+function pickOrderLabel(
+  playerText: string,
+  group: OrderItemGroup,
+  step: Pick<DialogueStep, "acceptNegated" | "blockers">,
+): string {
+  const matched = group.options.find((option) =>
+    matchesStep(playerText, { keywords: option.keywords, acceptNegated: step.acceptNegated, blockers: step.blockers }),
+  );
+  return matched?.label ?? group.default;
+}
+
+/** DIALOG-002：把 replyTemplate 的 {drink}/{pastry} 占位符换成玩家实际点的东西。 */
+function renderOrderReply(playerText: string, step: DialogueStep): string {
+  const { drinks, pastries } = step.orderItems!;
+  return step
+    .replyTemplate!.replace("{drink}", pickOrderLabel(playerText, drinks, step))
+    .replace("{pastry}", pickOrderLabel(playerText, pastries, step));
+}
+
+/**
  * 咖啡馆开场关卡的对话逻辑：按 content/npcs/barista.json 定义的任务链顺序推进。
  * 玩家说的话命中当前这一步的关键词 -> 真实调用 completeQuest 发奖并推进任务状态，
  * NPC 用符合角色的自然反应回复（不是判失败/弹窗中断）；未命中就用 fallback 温和引导重试，
@@ -148,7 +172,8 @@ export function generateCafeReply(db: DatabaseSync, playerText: unknown): Dialog
   // 先真实发奖/推进任务，再读取解锁状态——这样如果这一步的奖励正好让玩家升级触发解锁，
   // 这次回复就能立刻带上新台词，而不是要等到下一轮对话才反映出来。
   completeQuest(db, currentStep.questId);
-  return buildResponse(BARISTA.id, currentStep.reply + unlockSuffix(db));
+  const replyText = currentStep.replyTemplate ? renderOrderReply(text, currentStep) : currentStep.reply!;
+  return buildResponse(BARISTA.id, replyText + unlockSuffix(db));
 }
 
 function unlockSuffix(db: DatabaseSync): string {

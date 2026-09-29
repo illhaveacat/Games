@@ -106,7 +106,7 @@ describe("generateCafeReply", () => {
       expect(
         listQuestsWithProgress(db).find((e) => e.quest.id === "quest-order-coffee")?.progress.status,
       ).not.toBe("completed");
-      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+      expect(reply.text.toLowerCase()).not.toContain("got it");
     });
 
     it("does NOT complete the answer-followup step on a substring accident ('where' contains 'here')", () => {
@@ -164,7 +164,7 @@ describe("generateCafeReply", () => {
       expect(
         listQuestsWithProgress(db).find((e) => e.quest.id === "quest-order-coffee")?.progress.status,
       ).not.toBe("completed");
-      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+      expect(reply.text.toLowerCase()).not.toContain("got it");
     });
 
     it("does NOT complete order-coffee when negated with a curly apostrophe ('can’t')", () => {
@@ -270,7 +270,7 @@ describe("DIALOG-001 第 3 步（加糖/堂食打包追问）：常见正确回�
 
       expect(getPlayerProgress(db).xp).toBe(before);
       expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
-      expect(reply.text.toLowerCase()).not.toContain("coming right up");
+      expect(reply.text.toLowerCase()).not.toContain("got it");
     }
   });
 
@@ -298,7 +298,7 @@ describe("DIALOG-001 第 2 步（点单）：更多饮品/点心和常见点单�
 
       expect(statusOf(db, QUEST_ORDER)).toBe("completed");
       expect(getPlayerProgress(db).xp).toBe(100);
-      expect(reply.text.toLowerCase()).toContain("coming right up");
+      expect(reply.text.toLowerCase()).toContain("got it");
     },
   );
 
@@ -338,7 +338,7 @@ describe("DIALOG-001 第 2 步（点单）：更多饮品/点心和常见点单�
 
     expect(statusOf(db, QUEST_ORDER)).not.toBe("completed");
     expect(getPlayerProgress(db).xp).toBe(40);
-    expect(reply.text.toLowerCase()).not.toContain("coming right up");
+    expect(reply.text.toLowerCase()).not.toContain("got it");
   });
 
   it("先否定一个再点另一个（'No coffee, a tea please'）算点单", () => {
@@ -572,6 +572,93 @@ describe("DIALOG-001 返工：第 3 步单独一句 'No.' / 'Nope' 是对 'Would
       const atGreet = dbAtStep(1);
       generateCafeReply(atGreet, text);
       expect(statusOf(atGreet, QUEST_GREET)).not.toBe("completed");
+    }
+  });
+});
+
+describe("DIALOG-002 咖啡师复述玩家点单：回复带上实际点的饮品和点心名", () => {
+  it.each([
+    ["Can I get a latte and a sandwich, please?", "latte", "sandwich"],
+    ["I'd like a tea and a cake.", "tea", "cake"],
+    ["I'll have a cappuccino and a cookie", "cappuccino", "cookie"],
+    ["Could I get an americano and a croissant?", "americano", "croissant"],
+    ["Just a mocha and a muffin", "mocha", "muffin"],
+    ["An espresso and a bagel, please", "espresso", "bagel"],
+    ["A macchiato and a scone", "macchiato", "scone"],
+    ["I'd like a flat white and a brownie", "flat white", "brownie"],
+    ["Can I get a doughnut and a coffee?", "coffee", "donut"],
+  ])("%j -> 回复含 '%s' 和 '%s'", (utterance, drink, pastry) => {
+    const db = dbAtStep(2);
+
+    const reply = generateCafeReply(db, utterance);
+
+    expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+    expect(reply.text.toLowerCase()).toContain(`one ${drink} and a ${pastry}`);
+  });
+
+  it("只点了饮品没提点心：点心名用默认的 'pastry'", () => {
+    const db = dbAtStep(2);
+
+    const reply = generateCafeReply(db, "I'll have a latte, please");
+
+    expect(reply.text.toLowerCase()).toContain("one latte and a pastry");
+  });
+
+  it("只点了点心没提饮品：饮品名用默认的 'coffee'", () => {
+    const db = dbAtStep(2);
+
+    const reply = generateCafeReply(db, "Just a cookie, please");
+
+    expect(reply.text.toLowerCase()).toContain("one coffee and a cookie");
+  });
+
+  it("点的东西不在词表里（词表外句型）：饮品和点心都用默认名字", () => {
+    const db = dbAtStep(2);
+
+    const reply = generateCafeReply(db, "Can I get a hot chocolate and a green smoothie?");
+
+    expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+    expect(reply.text.toLowerCase()).toContain("one coffee and a pastry");
+  });
+
+  it("否定/blocker 语境下不会把提到的东西复述成点单（例如问库存的 'Is there tea?' 不算点了 tea）", () => {
+    const db = dbAtStep(2);
+
+    // "coffee" 和 "pastry" 词表外句型算点单，但同一句里被 blocker 挡住的 "tea" 不该被当成点了 tea
+    const reply = generateCafeReply(db, "Can I get a coffee? Is there tea?");
+
+    expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+    expect(reply.text.toLowerCase()).toContain("one coffee and a pastry");
+  });
+
+  it("第 1、3 步的回复维持原样：没有 replyTemplate/orderItems，改动只影响第 2 步", () => {
+    const [greetStep, orderStep, followupStep] = BARISTA.steps;
+    expect(greetStep.replyTemplate).toBeUndefined();
+    expect(greetStep.orderItems).toBeUndefined();
+    expect(typeof greetStep.reply).toBe("string");
+    expect(followupStep.replyTemplate).toBeUndefined();
+    expect(followupStep.orderItems).toBeUndefined();
+    expect(typeof followupStep.reply).toBe("string");
+    expect(orderStep.replyTemplate).toContain("{drink}");
+    expect(orderStep.replyTemplate).toContain("{pastry}");
+  });
+
+  it("真实完整链路：第 1 步打招呼 -> 第 2 步不同组合点单 -> 第 3 步加糖/堂食 -> 完成，且回复用词准确", () => {
+    for (const [utterance, drink, pastry] of [
+      ["a latte and a sandwich, please", "latte", "sandwich"],
+      ["tea and cake, please", "tea", "cake"],
+    ] as const) {
+      const db = createDatabase(":memory:");
+      generateCafeReply(db, "hello");
+
+      const orderReply = generateCafeReply(db, utterance);
+      expect(orderReply.text.toLowerCase()).toContain(`one ${drink} and a ${pastry}`);
+
+      const followupReply = generateCafeReply(db, "no sugar, to go");
+      expect(followupReply.text.toLowerCase()).toContain("perfect");
+      expect(getPlayerProgress(db).completedQuestIds.sort()).toEqual(
+        [QUEST_GREET, QUEST_ORDER, QUEST_FOLLOWUP].sort(),
+      );
     }
   });
 });
