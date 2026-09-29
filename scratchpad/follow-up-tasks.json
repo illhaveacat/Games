@@ -1,0 +1,37 @@
+[
+  {
+    "id": "DIALOG-002",
+    "title": "咖啡师复述玩家点单：barista.json 动态回复",
+    "role": "dev-worker",
+    "paths": [
+      "content/npcs/barista.json",
+      "apps/server/src/**"
+    ],
+    "dependsOn": ["DIALOG-001"],
+    "acceptanceCriteria": [
+      "修改 barista.json 第 2 步的回复逻辑：咖啡师回复应包含玩家实际点的饮品和点心名称，而不是固定的 One coffee and a pastry；例如点 latte + sandwich 则回复 One latte and a sandwich got it，点 tea + cake 则回复 One tea and a cake got it",
+      "回复模板维护在 barista.json 里，后续可独立修改而不需改代码",
+      "保证否定/对话流转逻辑不变：第 1 和 3 步的对话和推进条件维持原样，只改第 2 步咖啡师的回复话术",
+      "新增测试覆盖：玩家在第 2 步点不同组合（latte+sandwich、tea+cake、cappuccino+cookie 等），验证回复包含对应的饮品和点心名",
+      "真实 API 完整链路：从第 1 步打招呼到第 2 步点（各种组合）再到第 3 步（加糖/堂食）再到完成，验证咖啡师回复准确，写进 handoff"
+    ]
+  },
+  {
+    "id": "LLMCALL-001",
+    "title": "LLM 意图理解接入框架",
+    "role": "dev-worker",
+    "paths": [
+      "apps/server/src/**",
+      "packages/shared/**"
+    ],
+    "dependsOn": ["DIALOG-001"],
+    "acceptanceCriteria": [
+      "实现 rule-first fallback 混合模式：玩家输入先用规则判断，规则拿不准的句子才调 LLM；规则明确命中直接推进，不调 LLM",
+      "LLM 调用集成到 POST /api/dialogue：当规则返回 uncertain/unknown 时，把玩家这句话加当前任务步骤说明发给 LLM，LLM 从本步骤允许的意图列表中选一个，并用角色口吻回一句",
+      "后端校验 LLM 选的意图：必须属于当前步骤的合法意图才能发奖；超时/出错/超出当日费用预算则自动退回纯规则模式，游戏正常可玩",
+      "按人类拍板的四项决策实装：(1) 外发前在隐私说明（新建 PRIVACY.md 或在 README 补充）加声明说输入可能发送给第三方 AI 服务商；(2) 日费用上限设置到代码可配置初始不超 200 元/月均值约 6.67 元/天；(3) 用国产模型优先（豆包/Deepseek/Kimi/GLM），API 密钥由人类提供；(4) 模型优先级和备选方案记进文档供后续调整",
+      "规则匹配边界的已知限制需写进 docs/decisions.md：多词短语跳过否定检测例如 I'd like a refund 和 Can I get a table 等；第 3 步先拒后请求例如 No I want a latte 也会推进；这些属于 LLM 方案的覆盖范围",
+      "集成测试：(a) 用规则能判断的输入验证纯规则路径走不超 100 毫秒；(b) 用规则拿不准的输入走 LLM 路径并检查回复准确度；(c) LLM 超时、模型不可用、超预算三种异常场景验证都回退纯规则；(d) 真实 API 在有 LLM 的条件下走一遍完整对话链，记录 LLM 调用次数、延迟、准确率到 handoff"
+    ]
+  }
+]

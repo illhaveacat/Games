@@ -235,11 +235,23 @@ function kickoffFor(briefPath) {
   return `读 ${briefPath} 全文，严格按它执行。先把整份读完再动手，不要跳读。`;
 }
 
-function commandFor(kickoff) {
+/** 成员配了 model 就覆盖 agentCommand 里的 --model（没有则插在命令名后面），没配就用 agentCommand 原样。 */
+function commandFor(kickoff, member) {
   const template = team.agentCommand;
   if (!Array.isArray(template) || template.length === 0) die("team.json 的 agentCommand 必须是非空数组");
   const parts = template.map((part) => part.replace("{{KICKOFF}}", kickoff));
+  if (member.model !== undefined) {
+    if (typeof member.model !== "string" || !member.model.trim()) die(`成员 ${member.id} 的 model 必须是非空字符串`);
+    const at = parts.indexOf("--model");
+    if (at > 0 && at + 1 < parts.length) parts[at + 1] = member.model;
+    else parts.splice(1, 0, "--model", member.model);
+  }
   return { bin: parts[0], args: parts.slice(1) };
+}
+
+function modelOf(args) {
+  const at = args.indexOf("--model");
+  return at >= 0 && at + 1 < args.length ? args[at + 1] : "default";
 }
 
 /** 指到第三方端点 / 用 API Key 的情况下，Anthropic 账号登录状态没有参考意义。 */
@@ -387,9 +399,9 @@ for (const member of members) {
   const workdir = ensureWorktree(member);
   const briefPath = path.join(briefDir, `${member.id}.md`);
   if (!PRINT_ONLY) fs.writeFileSync(briefPath, buildBrief(member, workdir));
-  const { bin, args } = commandFor(kickoffFor(briefPath));
+  const { bin, args } = commandFor(kickoffFor(briefPath), member);
   plans.push({ member, workdir, briefPath, bin, args });
-  console.log(`  ${member.id.padEnd(14)} ${member.seat.padEnd(12)} ${workdir}`);
+  console.log(`  ${member.id.padEnd(14)} ${member.seat.padEnd(12)} ${modelOf(args).padEnd(18)} ${workdir}`);
 }
 
 // 协调器先起来，Worker 才领得到任务
@@ -411,6 +423,7 @@ worktree 和任务简报都已就绪，不需要命令行凭据。
   for (const plan of plans) {
     console.log(`── ${plan.member.id}（${plan.member.seat}）${plan.member.seat === "coordinator" ? "  ← 你只在这个会话里说话" : ""}`);
     console.log(`   工作目录：${plan.workdir}`);
+    if (plan.member.model) console.log(`   模型：    ${plan.member.model}（会话里用 /model 切过去）`);
     console.log(`   开场白：  ${kickoffFor(plan.briefPath)}\n`);
   }
   console.log("每个会话只用贴一次开场白，之后它自己按简报干活。");
