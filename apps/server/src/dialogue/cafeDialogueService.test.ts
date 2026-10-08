@@ -631,6 +631,44 @@ describe("DIALOG-002 咖啡师复述玩家点单：回复带上实际点的饮�
     expect(reply.text.toLowerCase()).toContain("one coffee and a pastry");
   });
 
+  describe("DIALOG-002 返工（审查 rev-01 P1）：多词 label（'flat white'）也要过否定/blocker 检查", () => {
+    it("被否定的多词 label 不会被复述：'I don't want a flat white, can I get a tea?' -> tea 不是 flat white", () => {
+      const db = dbAtStep(2);
+
+      const reply = generateCafeReply(db, "I don't want a flat white, can I get a tea?");
+
+      expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+      expect(reply.text.toLowerCase()).toContain("one tea and a pastry");
+    });
+
+    it("被 blocker 提问的多词 label 不会被复述：'Is there flat white? I'll have a tea.' -> tea 不是 flat white", () => {
+      const db = dbAtStep(2);
+
+      const reply = generateCafeReply(db, "Is there flat white? I'll have a tea.");
+
+      expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+      expect(reply.text.toLowerCase()).toContain("one tea and a pastry");
+    });
+
+    it("同一句里既有被 blocker 挡住的多词 label，也有正常点单：'What's a flat white? Can I get a latte and a muffin?' -> latte + muffin", () => {
+      const db = dbAtStep(2);
+
+      const reply = generateCafeReply(db, "What's a flat white? Can I get a latte and a muffin?");
+
+      expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+      expect(reply.text.toLowerCase()).toContain("one latte and a muffin");
+    });
+
+    it("正常点多词 label 不受影响（回归）：'I'd like a flat white and a brownie' 依然复述 flat white", () => {
+      const db = dbAtStep(2);
+
+      const reply = generateCafeReply(db, "I'd like a flat white and a brownie");
+
+      expect(statusOf(db, QUEST_ORDER)).toBe("completed");
+      expect(reply.text.toLowerCase()).toContain("one flat white and a brownie");
+    });
+  });
+
   it("第 1、3 步的回复维持原样：没有 replyTemplate/orderItems，改动只影响第 2 步", () => {
     const [greetStep, orderStep, followupStep] = BARISTA.steps;
     expect(greetStep.replyTemplate).toBeUndefined();
