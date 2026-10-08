@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { DialogueResponse } from "@games/shared";
-import { loadBaristaContent, type DialogueStep } from "../content/loadContent.js";
+import { loadBaristaContent, type DialogueStep, type OrderItemGroup } from "../content/loadContent.js";
 import { completeQuest, getPlayerProgress, listQuestsWithProgress, startQuest } from "../progress/progressStore.js";
 
 const BARISTA = loadBaristaContent();
@@ -120,6 +120,67 @@ export function matchesStep(
 }
 
 /**
+ * 点单项识别专用的否定/blocker 判断——不能复用 matchesStep：matchesStep 对多词短语
+ * （:103）是在整句范围内短路匹配、不做否定/blocker 检查，这是步骤推进要的行为（'to go'/
+ * 'good morning' 这类短语本身就是明确的意思），不能动，否则违反验收 3。
+ * 但识别"点单里具体是哪个饮品/点心"时，多词 label（如 'flat white'）必须跟单词 label 一样
+ * 过一遍否定/blocker 检查，否则 "I don't want a flat white, can I get a tea?" 或
+ * "Is there flat white? I'll have a tea." 会被复述成点了 flat white（DIALOG-002 返工 P1）。
+ * 做法：单词/多词 label 统一按"分句内扫描，phrase 结尾处检查前面有没有否定词/blocker"处理，
+ * 单词 label 只是 phrase 长度为 1 的特例，跟原 matchesStep 对单词的判定逻辑等价。
+ */
+function matchesOrderKeyword(
+  playerText: string,
+  keywords: string[],
+  step: Pick<DialogueStep, "acceptNegated" | "blockers">,
+): boolean {
+  const blockerPhrases = (step.blockers ?? []).map(tokenize).filter((phrase) => phrase.length > 0);
+  const keywordPhrases = keywords.map(tokenize).filter((phrase) => phrase.length > 0);
+  if (keywordPhrases.length === 0) return false;
+
+  return splitClauses(playerText)
+    .map(tokenize)
+    .some((tokens) => {
+      let negated = false;
+      let blocked = false;
+      for (let i = 0; i < tokens.length; i++) {
+        const hit = keywordPhrases.some((phrase) => endsPhraseAt(tokens, i, phrase));
+        if (hit && (step.acceptNegated || !negated) && !blocked) return true;
+        if (NEGATION_WORDS.has(tokens[i])) negated = true;
+        if (!blocked && blockerPhrases.some((phrase) => endsPhraseAt(tokens, i, phrase))) blocked = true;
+      }
+      return false;
+    });
+}
+
+/**
+ * 玩家点单里，某一类物品（饮品/点心）具体是哪个：按 options 顺序找第一个命中的。
+ * 都没命中就用 default（例如玩家只说了句型 "Can I get a hot chocolate?"，东西不在词表里）。
+ */
+function pickOrderLabel(
+  playerText: string,
+  group: OrderItemGroup,
+  step: Pick<DialogueStep, "acceptNegated" | "blockers">,
+): string {
+  const matched = group.options.find((option) => matchesOrderKeyword(playerText, option.keywords, step));
+  return matched?.label ?? group.default;
+}
+
+/**
+ * DIALOG-002：把 replyTemplate 的 {drink}/{pastry} 占位符换成玩家实际点的东西。
+ * 用 split/join 而不是 String.replace(字符串, 字符串)：replace 只替换第一处，且会把
+ * label 里的 $ 当成替换模式解释（审查 P2）；split/join 对重复占位符和含 $ 的 label 都安全。
+ */
+function renderOrderReply(playerText: string, step: DialogueStep): string {
+  const { drinks, pastries } = step.orderItems!;
+  return step
+    .replyTemplate!.split("{drink}")
+    .join(pickOrderLabel(playerText, drinks, step))
+    .split("{pastry}")
+    .join(pickOrderLabel(playerText, pastries, step));
+}
+
+/**
  * 咖啡馆开场关卡的对话逻辑：按 content/npcs/barista.json 定义的任务链顺序推进。
  * 玩家说的话命中当前这一步的关键词 -> 真实调用 completeQuest 发奖并推进任务状态，
  * NPC 用符合角色的自然反应回复（不是判失败/弹窗中断）；未命中就用 fallback 温和引导重试，
@@ -148,7 +209,8 @@ export function generateCafeReply(db: DatabaseSync, playerText: unknown): Dialog
   // 先真实发奖/推进任务，再读取解锁状态——这样如果这一步的奖励正好让玩家升级触发解锁，
   // 这次回复就能立刻带上新台词，而不是要等到下一轮对话才反映出来。
   completeQuest(db, currentStep.questId);
-  return buildResponse(BARISTA.id, currentStep.reply + unlockSuffix(db));
+  const replyText = currentStep.replyTemplate ? renderOrderReply(text, currentStep) : currentStep.reply!;
+  return buildResponse(BARISTA.id, replyText + unlockSuffix(db));
 }
 
 function unlockSuffix(db: DatabaseSync): string {

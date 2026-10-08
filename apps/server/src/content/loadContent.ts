@@ -16,6 +16,18 @@ function readJson<T>(relativePath: string): T {
   return JSON.parse(fs.readFileSync(fullPath, "utf8")) as T;
 }
 
+/** 一个可点的具体物品：label 是回复里要出现的名字，keywords 是识别它的词/短语（复用 matchesStep 的规则）。 */
+export interface OrderItemOption {
+  label: string;
+  keywords: string[];
+}
+
+/** 一类物品（饮品/点心）：options 按顺序尝试匹配，都不命中时用 default 兜底（例如玩家只说了点单句型但没提具体东西）。 */
+export interface OrderItemGroup {
+  default: string;
+  options: OrderItemOption[];
+}
+
 export interface DialogueStep {
   questId: string;
   /** 单个词按词边界匹配（且默认不能被否定词修饰）；含空格的是短语，按连续词序列匹配，不做否定检测。 */
@@ -26,7 +38,18 @@ export interface DialogueStep {
   blockers?: string[];
   /** 这一步没听懂时的追问；缺省用 NpcContent.fallback。 */
   fallback?: string;
-  reply: string;
+  /** 固定回复。与 replyTemplate 二选一：没有 replyTemplate 的步骤必须有它。 */
+  reply?: string;
+  /**
+   * 带占位符的回复模板（目前用到的占位符：{drink}、{pastry}），完成这一步时用 orderItems 里
+   * 玩家实际点的物品名替换后作为回复——DIALOG-002：咖啡师复述玩家点的东西，而不是说死的 "coffee and a pastry"。
+   * 存在 replyTemplate 时必须同时提供 orderItems。
+   */
+  replyTemplate?: string;
+  orderItems?: {
+    drinks: OrderItemGroup;
+    pastries: OrderItemGroup;
+  };
 }
 
 export interface NpcUnlock {
@@ -75,6 +98,29 @@ function assertStringArray(value: unknown, label: string, { nonEmpty }: { nonEmp
   }
 }
 
+function assertOrderItemGroup(value: unknown, label: string): asserts value is OrderItemGroup {
+  if (typeof value !== "object" || value === null) {
+    throw new Error(`content/npcs/barista.json: ${label} 必须是对象`);
+  }
+  const group = value as Record<string, unknown>;
+  if (typeof group.default !== "string" || group.default.trim() === "") {
+    throw new Error(`content/npcs/barista.json: ${label}.default 必须是非空字符串`);
+  }
+  if (!Array.isArray(group.options) || group.options.length === 0) {
+    throw new Error(`content/npcs/barista.json: ${label}.options 必须是非空数组`);
+  }
+  group.options.forEach((option, i) => {
+    if (typeof option !== "object" || option === null) {
+      throw new Error(`content/npcs/barista.json: ${label}.options[${i}] 必须是对象`);
+    }
+    const { label: itemLabel, keywords } = option as Record<string, unknown>;
+    if (typeof itemLabel !== "string" || itemLabel.trim() === "") {
+      throw new Error(`content/npcs/barista.json: ${label}.options[${i}].label 必须是非空字符串`);
+    }
+    assertStringArray(keywords, `${label}.options[${i}].keywords`, { nonEmpty: true });
+  });
+}
+
 /** 内容包是人手写的：字段写错（拼错键名、漏写数组）在加载时就报出来，而不是等玩家说话时才崩。 */
 export function validateBaristaContent(content: NpcContent): NpcContent {
   content.steps.forEach((step, i) => {
@@ -86,6 +132,19 @@ export function validateBaristaContent(content: NpcContent): NpcContent {
     }
     if (step.acceptNegated !== undefined && typeof step.acceptNegated !== "boolean") {
       throw new Error(`content/npcs/barista.json: ${label}.acceptNegated 必须是布尔值`);
+    }
+
+    const hasReply = typeof step.reply === "string" && step.reply.trim() !== "";
+    const hasTemplate = typeof step.replyTemplate === "string" && step.replyTemplate.trim() !== "";
+    if (!hasReply && !hasTemplate) {
+      throw new Error(`content/npcs/barista.json: ${label} 必须有非空的 reply 或 replyTemplate`);
+    }
+    if (hasTemplate) {
+      if (step.orderItems === undefined || step.orderItems === null) {
+        throw new Error(`content/npcs/barista.json: ${label}.replyTemplate 存在时必须提供 orderItems`);
+      }
+      assertOrderItemGroup(step.orderItems.drinks, `${label}.orderItems.drinks`);
+      assertOrderItemGroup(step.orderItems.pastries, `${label}.orderItems.pastries`);
     }
   });
   return content;

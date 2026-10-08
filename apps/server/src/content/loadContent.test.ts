@@ -33,7 +33,13 @@ describe("loadBaristaContent", () => {
     ]);
     for (const step of barista.steps) {
       expect(step.keywords.length).toBeGreaterThan(0);
-      expect(step.reply.length).toBeGreaterThan(0);
+      // DIALOG-002：第 2 步用 replyTemplate（带占位符，按玩家实际点的东西渲染）而不是固定 reply。
+      if (step.replyTemplate !== undefined) {
+        expect(step.replyTemplate.length).toBeGreaterThan(0);
+        expect(step.orderItems).toBeDefined();
+      } else {
+        expect(step.reply?.length).toBeGreaterThan(0);
+      }
     }
     expect(barista.fallback.length).toBeGreaterThan(0);
     expect(barista.afterAllCompleteReply.length).toBeGreaterThan(0);
@@ -83,6 +89,34 @@ describe("validateBaristaContent", () => {
     const negated = base();
     (negated.steps[2] as { acceptNegated?: unknown }).acceptNegated = "yes";
     expect(() => validateBaristaContent(negated)).toThrow(/acceptNegated/);
+  });
+
+  it("DIALOG-002: 每一步必须有 reply 或 replyTemplate 其中之一", () => {
+    const neither = base();
+    delete (neither.steps[0] as { reply?: string }).reply; // steps[0] 只有 reply，没有 replyTemplate
+    expect(() => validateBaristaContent(neither)).toThrow(/必须有非空的 reply 或 replyTemplate/);
+  });
+
+  it("DIALOG-002: 有 replyTemplate 就必须有 orderItems，且 drinks/pastries 的 default 与 options 要合法", () => {
+    const noOrderItems = base();
+    delete (noOrderItems.steps[1] as { orderItems?: unknown }).orderItems;
+    expect(() => validateBaristaContent(noOrderItems)).toThrow(/orderItems/);
+
+    const noDefault = base();
+    delete (noDefault.steps[1].orderItems!.drinks as { default?: string }).default;
+    expect(() => validateBaristaContent(noDefault)).toThrow(/orderItems\.drinks\.default/);
+
+    const emptyOptions = base();
+    emptyOptions.steps[1].orderItems!.pastries.options = [];
+    expect(() => validateBaristaContent(emptyOptions)).toThrow(/orderItems\.pastries\.options/);
+
+    const badLabel = base();
+    (badLabel.steps[1].orderItems!.drinks.options[0] as { label?: unknown }).label = "";
+    expect(() => validateBaristaContent(badLabel)).toThrow(/orderItems\.drinks\.options\[0\]\.label/);
+
+    const badKeywords = base();
+    (badKeywords.steps[1].orderItems!.pastries.options[0] as { keywords?: unknown }).keywords = [];
+    expect(() => validateBaristaContent(badKeywords)).toThrow(/orderItems\.pastries\.options\[0\]\.keywords/);
   });
 });
 

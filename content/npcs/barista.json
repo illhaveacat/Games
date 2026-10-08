@@ -85,7 +85,38 @@
         "how much does"
       ],
       "fallback": "What can I get for you today? We've got coffee, tea, and some fresh pastries.",
-      "reply": "One coffee and a pastry, coming right up! Would you like sugar with that? And is it for here or to go?"
+      "replyTemplate": "One {drink} and a {pastry}, got it! Would you like sugar with that? And is it for here or to go?",
+      "orderItems": {
+        "drinks": {
+          "default": "coffee",
+          "options": [
+            { "label": "latte", "keywords": ["latte"] },
+            { "label": "cappuccino", "keywords": ["cappuccino"] },
+            { "label": "americano", "keywords": ["americano"] },
+            { "label": "espresso", "keywords": ["espresso"] },
+            { "label": "mocha", "keywords": ["mocha"] },
+            { "label": "macchiato", "keywords": ["macchiato"] },
+            { "label": "flat white", "keywords": ["flat white"] },
+            { "label": "tea", "keywords": ["tea"] },
+            { "label": "coffee", "keywords": ["coffee"] }
+          ]
+        },
+        "pastries": {
+          "default": "pastry",
+          "options": [
+            { "label": "croissant", "keywords": ["croissant"] },
+            { "label": "muffin", "keywords": ["muffin"] },
+            { "label": "cake", "keywords": ["cake"] },
+            { "label": "cookie", "keywords": ["cookie"] },
+            { "label": "sandwich", "keywords": ["sandwich"] },
+            { "label": "bagel", "keywords": ["bagel"] },
+            { "label": "donut", "keywords": ["donut", "doughnut"] },
+            { "label": "scone", "keywords": ["scone"] },
+            { "label": "brownie", "keywords": ["brownie"] },
+            { "label": "pastry", "keywords": ["pastry"] }
+          ]
+        }
+      }
     },
     {
       "questId": "quest-answer-followup",
